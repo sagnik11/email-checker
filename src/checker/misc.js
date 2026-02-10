@@ -1,6 +1,35 @@
 const crypto = require("node:crypto");
 const mailchecker = require("mailchecker");
+const disposableEmailDomains = require("disposable-email-domains");
 const { b2cSet, rolesSet } = require("./data");
+const manualDisposableDomains = new Set([
+  // Keep a small override set for common disposable domains that may be
+  // missing from upstream lists.
+  "tempmail.com",
+  "temp-mail.org",
+  "tempmail.org",
+  "yopmail.com",
+]);
+const disposableDomainSet = new Set(
+  disposableEmailDomains.map((domain) => String(domain).toLowerCase())
+);
+
+function isDisposableDomain(domain) {
+  let candidate = String(domain || "").toLowerCase().trim();
+  if (!candidate) {
+    return false;
+  }
+
+  // Match both exact domains and nested subdomains.
+  while (candidate.includes(".")) {
+    if (disposableDomainSet.has(candidate) || manualDisposableDomains.has(candidate)) {
+      return true;
+    }
+    candidate = candidate.slice(candidate.indexOf(".") + 1);
+  }
+
+  return disposableDomainSet.has(candidate) || manualDisposableDomains.has(candidate);
+}
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
   const controller = new AbortController();
@@ -75,7 +104,8 @@ async function checkMisc(syntax, options = {}) {
   ]);
 
   return {
-    is_disposable: !mailchecker.isValid(email),
+    // Use both sources: `mailchecker` plus a larger disposable-domain list.
+    is_disposable: !mailchecker.isValid(email) || isDisposableDomain(domain),
     is_role_account: rolesSet.has(username),
     is_b2c: b2cSet.has(domain),
     gravatar_url: gravatarUrl,
@@ -85,4 +115,5 @@ async function checkMisc(syntax, options = {}) {
 
 module.exports = {
   checkMisc,
+  isDisposableDomain,
 };

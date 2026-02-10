@@ -1,8 +1,8 @@
 backend_name = "backend-dev"
 http_host = "127.0.0.1"
 http_port = 8080
-hello_name = "localhost"
-from_email = "hello@localhost"
+hello_name = "worqhat.com"
+from_email = "noreply@worqhat.com"
 # smtp_timeout = 45
 # header_secret = "my-secret"
 

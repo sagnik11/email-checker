@@ -19,7 +19,6 @@ Node.js migration of the Rust backend and checker.
 ## Install
 
 ```bash
-cd nodejs
 npm install
 ```
 
@@ -32,6 +31,10 @@ npm install -g .
 ## Configuration
 
 Default config file path is `./backend_config.toml` (inside `nodejs/`).
+Default config file path is `./backend_config.toml`.
+Default SMTP identity is:
+- `from_email = noreply@worqhat.com`
+- `hello_name = worqhat.com`
 
 You can override via env vars using Rust-compatible style:
 
@@ -93,6 +96,18 @@ curl -X POST http://127.0.0.1:8080/v1/bulk \
 ```
 
 ## Development
+
+Run dev server:
+
+```bash
+npm run dev
+```
+
+If port `8080` is already in use:
+
+```bash
+PORT=8081 npm run dev
+```
 
 Run tests:
 

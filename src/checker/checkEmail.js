@@ -87,7 +87,7 @@ async function checkEmail(rawInput = {}) {
     from_email:
       rawInput.from_email || process.env.WQ_FROM_EMAIL || "noreply@worqhat.com",
     hello_name:
-      rawInput.hello_name || process.env.WQ_HELLO_NAME || "gmail.com",
+      rawInput.hello_name || process.env.WQ_HELLO_NAME || "worqhat.com",
     smtp_port: Number(rawInput.smtp_port || 25),
     retries: Number(rawInput.retries || 1),
     proxy: rawInput.proxy || null,
@@ -129,6 +129,8 @@ async function checkEmail(rawInput = {}) {
     };
   }
 
+  const misc = await checkMisc(syntax, input);
+
   let mxResult;
   try {
     mxResult = await checkMx(syntax.domain);
@@ -138,7 +140,7 @@ async function checkEmail(rawInput = {}) {
     return {
       input: input.to_email,
       is_reachable: "unknown",
-      misc: defaultMisc(),
+      misc,
       mx: {
         error: {
           type: err?.code || err?.name || "MxError",
@@ -167,7 +169,7 @@ async function checkEmail(rawInput = {}) {
     return {
       input: input.to_email,
       is_reachable: "invalid",
-      misc: defaultMisc(),
+      misc,
       mx: {
         accepts_mail: false,
         records: mxResult.records,
@@ -188,7 +190,6 @@ async function checkEmail(rawInput = {}) {
     };
   }
 
-  const misc = await checkMisc(syntax, input);
   const mxHost = mxResult.preferred.exchange;
   const hasTimeoutRule = hasRule(syntax.domain, mxHost, Rule.SMTP_TIMEOUT_45S);
 

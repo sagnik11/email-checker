@@ -5,8 +5,8 @@ const toml = require("toml");
 function defaultConfig() {
   return {
     backend_name: "backend-dev",
-    from_email: "hello@localhost",
-    hello_name: "localhost",
+    from_email: "noreply@worqhat.com",
+    hello_name: "worqhat.com",
     smtp_timeout: null,
     proxy: null,
     overrides: {
