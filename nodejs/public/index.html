@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WQ Email Checker (Node)</title>
+    <style>
+      :root {
+        --bg: #f3f6f9;
+        --card: #ffffff;
+        --ink: #1d2a35;
+        --accent: #0f7b6c;
+        --muted: #6b7b8c;
+      }
+      body {
+        margin: 0;
+        font-family: "Avenir Next", "Segoe UI", sans-serif;
+        color: var(--ink);
+        background: radial-gradient(circle at 20% 0%, #d2efe9, var(--bg) 45%);
+      }
+      .wrap {
+        max-width: 920px;
+        margin: 40px auto;
+        padding: 0 16px;
+      }
+      .card {
+        background: var(--card);
+        border-radius: 16px;
+        box-shadow: 0 18px 45px rgba(19, 43, 62, 0.12);
+        padding: 24px;
+      }
+      h1 {
+        margin-top: 0;
+      }
+      .grid {
+        display: grid;
+        gap: 12px;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      }
+      label {
+        font-size: 13px;
+        color: var(--muted);
+      }
+      input,
+      button {
+        width: 100%;
+        box-sizing: border-box;
+        border-radius: 10px;
+        border: 1px solid #d5dee8;
+        padding: 10px 12px;
+        font-size: 14px;
+      }
+      button {
+        border: none;
+        background: var(--accent);
+        color: white;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      pre {
+        background: #12202f;
+        color: #dbe8f6;
+        padding: 16px;
+        border-radius: 12px;
+        overflow: auto;
+        max-height: 420px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <h1>WQ Email Checker Node</h1>
+        <p>Runs <code>POST /v1/check_email</code>.</p>
+        <div class="grid">
+          <div>
+            <label>Email</label>
+            <input id="to_email" placeholder="someone@gmail.com" />
+          </div>
+          <div>
+            <label>From Email</label>
+            <input id="from_email" placeholder="hello@example.com" />
+          </div>
+          <div>
+            <label>Hello Name</label>
+            <input id="hello_name" placeholder="example.com" />
+          </div>
+          <div>
+            <label>SMTP Port</label>
+            <input id="smtp_port" value="25" />
+          </div>
+        </div>
+        <div style="margin-top: 16px">
+          <button id="runBtn">Check Email</button>
+        </div>
+      </div>
+      <div class="card" style="margin-top: 16px">
+        <h3>Response</h3>
+        <pre id="output">{}</pre>
+      </div>
+    </div>
+
+    <script>
+      const btn = document.getElementById("runBtn");
+      const output = document.getElementById("output");
+
+      btn.addEventListener("click", async () => {
+        const payload = {
+          to_email: document.getElementById("to_email").value,
+          from_email: document.getElementById("from_email").value || undefined,
+          hello_name: document.getElementById("hello_name").value || undefined,
+          smtp_port: Number(document.getElementById("smtp_port").value || 25),
+        };
+
+        try {
+          const res = await fetch("/v1/check_email", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          const body = await res.json();
+          output.textContent = JSON.stringify(body, null, 2);
+        } catch (err) {
+          output.textContent = String(err);
+        }
+      });
+    </script>
+  </body>
+</html>

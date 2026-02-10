@@ -1,0 +1,5 @@
+.git
+node_modules/
+nodejs/node_modules/
+*.log
+.env

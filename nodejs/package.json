@@ -1,0 +1,30 @@
+{
+  "name": "wq-email-checker-node",
+  "version": "0.2.0",
+  "description": "Node.js port of WorqHat Email Checker backend + CLI",
+  "license": "AGPL-3.0-or-later",
+  "type": "commonjs",
+  "main": "src/index.js",
+  "bin": {
+    "wq-email-checker": "bin/wq-email-checker.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "worker": "node src/worker/run.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "amqplib": "^0.10.7",
+    "commander": "^13.1.0",
+    "csv-stringify": "^6.6.0",
+    "express": "^4.21.2",
+    "isemail": "^3.2.0",
+    "mailchecker": "^6.0.18",
+    "pg": "^8.14.1",
+    "socks": "^2.8.7",
+    "toml": "^3.0.0"
+  }
+}

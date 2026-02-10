@@ -1,0 +1,25 @@
+backend_name = "backend-dev"
+http_host = "127.0.0.1"
+http_port = 8080
+hello_name = "localhost"
+from_email = "hello@localhost"
+# smtp_timeout = 45
+# header_secret = "my-secret"
+
+[throttle]
+# max_requests_per_second = 20
+# max_requests_per_minute = 60
+# max_requests_per_hour = 1000
+# max_requests_per_day = 10000
+
+[worker]
+enable = false
+
+[worker.rabbitmq]
+url = "amqp://guest:guest@localhost:5672"
+concurrency = 5
+
+# Enable Postgres storage for bulk endpoints and persisted results.
+# [storage.postgres]
+# db_url = "postgresql://localhost/wq_email_checker_db"
+# extra = { tenant = "acme" }
