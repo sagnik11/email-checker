@@ -11,7 +11,7 @@ The Node project is in:
 It contains:
 
 - core checker pipeline (syntax, MX, misc, SMTP, reachability)
-- API routes for both legacy (`v0`) and current (`v1`) endpoints
+- API routes for `v1` endpoints
 - queue worker pipeline with RabbitMQ
 - Postgres-backed storage for task and bulk job records
 - CLI commands for server, worker, and direct checks
@@ -101,25 +101,10 @@ It contains:
 
 ### Single email checks
 
-- `POST /v0/check_email`
-  - no worker dependency
-  - immediate checker execution
 - `POST /v1/check_email`
   - if `worker.enable = false`: immediate execution + storage write
   - if `worker.enable = true`: RPC-style worker request/reply via RabbitMQ
   - throttle enforced on v1 path
-
-### Legacy bulk (`v0`)
-
-- `POST /v0/bulk`
-- `GET /v0/bulk/:id`
-- `GET /v0/bulk/:id/results?format=json|csv&limit=&offset=`
-
-Implementation note:
-
-- Requires Postgres storage.
-- If worker is enabled, tasks are queued through RabbitMQ.
-- If worker is disabled, tasks are executed inline and written to DB.
 
 ### v1 bulk
 
@@ -155,12 +140,10 @@ Worker behavior:
 
 Tables created on startup when Postgres storage is enabled:
 
-- `bulk_jobs`
-- `email_results`
 - `v1_bulk_job`
 - `v1_task_result`
 
-This supports both v0 and v1 bulk routes and persisted result retrieval.
+This supports v1 bulk routes and persisted result retrieval.
 
 ## 6) Configuration
 

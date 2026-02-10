@@ -180,24 +180,6 @@ async function rpcCheckEmail(runtime, task) {
   }
 }
 
-function mapLegacyBulkInput(toEmail, body, config) {
-  const smtpPorts = Array.isArray(body.smtp_ports) && body.smtp_ports.length > 0 ? body.smtp_ports : [25];
-  const smtpPort = Number(smtpPorts[0] || 25);
-
-  return {
-    to_email: String(toEmail),
-    from_email: body.from_email || config.from_email,
-    hello_name: body.hello_name || config.hello_name,
-    smtp_port: smtpPort,
-    smtp_timeout: config.smtp_timeout,
-    retries: 1,
-    proxy: body.proxy || null,
-    backend_name: config.backend_name,
-    check_gravatar: false,
-    haveibeenpwned_api_key: null,
-  };
-}
-
 function createApp(runtime) {
   const app = express();
   app.use(express.json({ limit: "50mb" }));
@@ -207,23 +189,6 @@ function createApp(runtime) {
 
   app.get("/version", (_req, res) => {
     res.json({ version: pkg.version });
-  });
-
-  app.post("/v0/check_email", async (req, res) => {
-    const auth = checkHeaderSecret(req, runtime.config);
-    if (!auth.ok) return res.status(auth.code).json(auth.body);
-
-    if (!req.body?.to_email) {
-      return badRequest(res, "to_email field is required.");
-    }
-
-    try {
-      const input = mapRequestToCheckInput(req.body, runtime.config, { job_source: "v0" });
-      const result = await checkEmail(input);
-      return res.json(result);
-    } catch (err) {
-      return internalError(res, err);
-    }
   });
 
   app.post("/v1/check_email", async (req, res) => {
@@ -275,89 +240,6 @@ function createApp(runtime) {
       return res.json(result);
     } catch (err) {
       return res.status(Number(err.statusCode || 500)).json({ error: err.message });
-    }
-  });
-
-  app.post("/v0/bulk", async (req, res) => {
-    const auth = checkHeaderSecret(req, runtime.config);
-    if (!auth.ok) return res.status(auth.code).json(auth.body);
-
-    if (!Array.isArray(req.body?.input) || req.body.input.length === 0) {
-      return badRequest(res, "Empty input");
-    }
-
-    if (runtime.config.storage.type !== "postgres") {
-      return res.status(404).json({ error: "Bulk endpoints require Postgres storage" });
-    }
-
-    try {
-      const jobId = await runtime.storage.createV0BulkJob(req.body.input.length);
-
-      for (const toEmail of req.body.input) {
-        const input = mapLegacyBulkInput(toEmail, req.body, runtime.config);
-
-        const task = {
-          input,
-          job_id: { kind: "bulk_v0", id: jobId },
-          webhook: null,
-        };
-
-        if (runtime.config.worker.enable && runtime.rabbit?.channel) {
-          await publishTask(runtime.rabbit.channel, task, { priority: 1 });
-        } else {
-          const result = await checkEmail(input);
-          await runtime.storage.store(task, { ok: true, result }, runtime.storage.getExtra());
-        }
-      }
-
-      return res.json({ job_id: jobId });
-    } catch (err) {
-      return internalError(res, err);
-    }
-  });
-
-  app.get("/v0/bulk/:id", async (req, res) => {
-    try {
-      const progress = await runtime.storage.getV0BulkProgress(Number(req.params.id));
-      if (!progress) {
-        return badRequest(res, "Job not found");
-      }
-      return res.json(progress);
-    } catch (err) {
-      return internalError(res, err);
-    }
-  });
-
-  app.get("/v0/bulk/:id/results", async (req, res) => {
-    try {
-      const jobId = Number(req.params.id);
-      const job = await runtime.storage.getV0BulkJob(jobId);
-      if (!job) {
-        return badRequest(res, "Job not found");
-      }
-
-      const processed = await runtime.storage.countV0Processed(jobId);
-      if (processed < Number(job.total_records)) {
-        return badRequest(res, "Job is still running");
-      }
-
-      const { limit, offset } = parseLimitOffset(req);
-      const format = String(req.query.format || "json").toLowerCase();
-      const rows = await runtime.storage.getV0Results(
-        jobId,
-        limit === null ? (format === "json" ? 50 : null) : limit,
-        offset
-      );
-
-      if (format === "csv") {
-        const csv = stringify(rows.map(mapResultToCsvRow), { header: true });
-        res.setHeader("content-type", "text/csv");
-        return res.send(csv);
-      }
-
-      return res.json({ results: rows });
-    } catch (err) {
-      return internalError(res, err);
     }
   });
 

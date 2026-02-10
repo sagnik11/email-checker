@@ -29,7 +29,6 @@ It also supports bulk workflows, queue-based worker processing, and persisted re
 
 Supported endpoints:
 
-- `POST /v0/check_email`
 - `POST /v1/check_email`
 
 Both return a detailed JSON object including:
@@ -46,14 +45,9 @@ Both return a detailed JSON object including:
 
 Supported endpoints:
 
-- Legacy bulk:
-  - `POST /v0/bulk`
-  - `GET /v0/bulk/:id`
-  - `GET /v0/bulk/:id/results?format=json|csv&limit=&offset=`
-- v1 bulk:
-  - `POST /v1/bulk`
-  - `GET /v1/bulk/:id`
-  - `GET /v1/bulk/:id/results?format=json|csv&limit=&offset=`
+- `POST /v1/bulk`
+- `GET /v1/bulk/:id`
+- `GET /v1/bulk/:id/results?format=json|csv&limit=&offset=`
 
 ### 3.3 Queue worker architecture
 
@@ -66,7 +60,6 @@ Supported endpoints:
 
 When Postgres storage is enabled, the service persists:
 
-- v0 bulk jobs and results
 - v1 bulk jobs and task results
 - single-shot results (v1 path)
 
@@ -172,7 +165,7 @@ Flow:
 
 ### 5.4 Results endpoints
 
-Both v0 and v1 support:
+v1 supports:
 
 - JSON result pages (default capped page size behavior for JSON)
 - CSV output via `format=csv`
@@ -207,14 +200,11 @@ Auto-created by `nodejs/src/storage/postgres.js` when Postgres storage is active
 
 Tables:
 
-- `bulk_jobs`
-- `email_results`
 - `v1_bulk_job`
 - `v1_task_result`
 
 Purpose:
 
-- `bulk_jobs`, `email_results`: legacy v0 bulk tracking/results
 - `v1_bulk_job`, `v1_task_result`: v1 worker-centric tracking/results
 
 ## 8. Configuration model

@@ -1,14 +1,2 @@
-.DS_Store
-.env
-*.log
-
-# Node
-node_modules/
-nodejs/node_modules/
-nodejs/npm-debug.log*
-nodejs/.env
-
-# Build/temp
-coverage/
-dist/
-.tmp/
+node_modules
+npm-debug.log*
