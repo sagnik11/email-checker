@@ -4,7 +4,10 @@ const path = require("node:path");
 const express = require("express");
 const { stringify } = require("csv-stringify/sync");
 
-const pkg = require("../../package.json");
+let appVersion = "0.0.0";
+try {
+  appVersion = require(path.resolve(process.cwd(), "package.json")).version || appVersion;
+} catch (_) {}
 const { checkEmail } = require("../checker/checkEmail");
 const { mapRequestToCheckInput } = require("./requestMapper");
 const { badRequest, internalError } = require("./errors");
@@ -189,7 +192,7 @@ function createApp(runtime) {
   app.use(express.static(publicDir));
 
   app.get("/version", (_req, res) => {
-    res.json({ version: pkg.version });
+    res.json({ version: appVersion });
   });
 
   app.post("/v1/check_email", async (req, res) => {
