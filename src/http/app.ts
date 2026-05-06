@@ -13,6 +13,52 @@ const { mapRequestToCheckInput } = require("./requestMapper");
 const { badRequest, internalError } = require("./errors");
 const { publishTask, MAX_QUEUE_PRIORITY } = require("../worker/queue");
 
+function resolvePublicDir() {
+  const candidates = [
+    path.resolve(__dirname, "..", "..", "public"),
+    path.resolve(__dirname, "..", "..", "..", "public"),
+    path.resolve(process.cwd(), "public"),
+  ];
+
+  for (const dir of candidates) {
+    try {
+      const stat = require("node:fs").statSync(dir);
+      if (stat.isDirectory()) {
+        return dir;
+      }
+    } catch (_) {}
+  }
+
+  return null;
+}
+
+function getAllowedOrigins(config) {
+  const raw = config?.cors?.origins ?? config?.cors_origins ?? ["*"];
+  if (Array.isArray(raw)) {
+    return raw.map((x) => String(x).trim()).filter(Boolean);
+  }
+  return String(raw)
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
+
+function applyCors(req, res, allowedOrigins) {
+  const requestOrigin = req.headers.origin;
+  const allowsAll = allowedOrigins.includes("*");
+
+  if (allowsAll) {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+  } else if (requestOrigin && allowedOrigins.includes(requestOrigin)) {
+    res.setHeader("Access-Control-Allow-Origin", requestOrigin);
+    res.setHeader("Vary", "Origin");
+  }
+
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "content-type,x-api-secret,authorization");
+  res.setHeader("Access-Control-Max-Age", "86400");
+}
+
 function checkHeaderSecret(req, config) {
   if (!config.header_secret) {
     return { ok: true };
@@ -186,10 +232,31 @@ async function rpcCheckEmail(runtime, task) {
 
 function createApp(runtime) {
   const app = express();
+  const allowedOrigins = getAllowedOrigins(runtime.config);
+
+  app.use((req, res, next) => {
+    applyCors(req, res, allowedOrigins);
+    if (req.method === "OPTIONS") {
+      return res.status(204).end();
+    }
+    next();
+  });
+
   app.use(express.json({ limit: "50mb" }));
 
-  const publicDir = path.resolve(__dirname, "..", "..", "public");
-  app.use(express.static(publicDir));
+  const publicDir = resolvePublicDir();
+  if (publicDir) {
+    app.use(express.static(publicDir));
+  }
+
+  app.get("/", (_req, res) => {
+    res.status(200).json({
+      ok: true,
+      name: "email-validation-service",
+      version: appVersion,
+      endpoints: ["/health", "/version", "/v1/check_email"],
+    });
+  });
 
   app.get("/version", (_req, res) => {
     res.json({ version: appVersion });

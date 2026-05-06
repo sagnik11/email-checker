@@ -25,6 +25,18 @@ x-api-secret: <your-secret>
 
 If this header is missing or invalid, API returns `400`.
 
+## 2.1) CORS (Frontend Apps)
+
+If your main app calls this API from the browser, configure allowed origins.
+
+- Default: `*`
+- Config key: `cors.origins`
+- Env override example:
+
+```env
+EMAIL_CHECKER__CORS__ORIGINS=https://your-main-app.com,https://www.your-main-app.com
+```
+
 ## 3) Content Type
 
 Send JSON payloads with:

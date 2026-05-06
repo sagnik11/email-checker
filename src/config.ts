@@ -30,6 +30,9 @@ function defaultConfig() {
     storage: {
       type: "noop",
     },
+    cors: {
+      origins: ["*"],
+    },
     commercial_license_trial: null,
     throttle: {
       max_requests_per_second: null,
