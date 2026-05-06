@@ -13,6 +13,6 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "bin/**/*.ts", "test/**/*.ts"],
+  "include": ["src/**/*.ts", "bin/**/*.ts", "test/**/*.ts", "api/**/*.ts"],
   "exclude": ["dist", "node_modules"]
 }
