@@ -1,13 +1,13 @@
 {
-  "name": "wq-email-checker-node",
+  "name": "email-validation-service",
   "version": "0.2.0",
-  "description": "Node.js port of WorqHat Email Checker backend + CLI",
+  "description": "Generic email validation backend and CLI",
   "license": "AGPL-3.0-or-later",
   "type": "commonjs",
   "main": "dist/src/index.js",
   "types": "dist/src/index.d.ts",
   "bin": {
-    "wq-email-checker": "dist/bin/wq-email-checker.js"
+    "email-validator": "dist/bin/email-validator.js"
   },
   "engines": {
     "node": ">=18"

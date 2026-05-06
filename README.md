@@ -1,10 +1,12 @@
 # wq-email-checker-node
 
-TypeScript-based email verification backend and CLI, ported from the original WorqHat Email Checker backend.
+[![Autter](https://autter.dev/logo-dark.png)](https://autter.dev)
+
+TypeScript-based email verification backend and CLI by [Autter](https://autter.dev).
 
 ## Sponsor
 
-This project is sponsored by **Autter**.
+This project is sponsored by **[Autter](https://autter.dev)**.
 
 ## What It Does
 
@@ -62,8 +64,8 @@ Default config file path:
 
 Default SMTP identity:
 
-- `from_email = noreply@worqhat.com`
-- `hello_name = worqhat.com`
+- `from_email = noreply@autter.dev`
+- `hello_name = autter.dev`
 
 Environment overrides use `WQ__...` keys:
 

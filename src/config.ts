@@ -6,8 +6,8 @@ const toml = require("toml");
 function defaultConfig() {
   return {
     backend_name: "backend-dev",
-    from_email: "noreply@worqhat.com",
-    hello_name: "worqhat.com",
+    from_email: "noreply@example.com",
+    hello_name: "example.com",
     smtp_timeout: null,
     proxy: null,
     overrides: {
@@ -86,12 +86,12 @@ function parseEnvValue(raw) {
 
 function applyEnvOverrides(config, env = process.env) {
   for (const [key, value] of Object.entries(env)) {
-    if (!key.startsWith("WQ__")) {
+    if (!key.startsWith("EMAIL_CHECKER__")) {
       continue;
     }
 
     const pathParts = key
-      .slice("WQ__".length)
+      .slice("EMAIL_CHECKER__".length)
       .split("__")
       .map((x) => x.toLowerCase());
 

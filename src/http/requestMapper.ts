@@ -50,7 +50,7 @@ function mapRequestToCheckInput(body, config, opts = {}) {
     backend_name: config.backend_name,
     check_gravatar: Boolean(request.check_gravatar),
     haveibeenpwned_api_key:
-      request.haveibeenpwned_api_key || process.env.WQ_HIBP_API_KEY || null,
+      request.haveibeenpwned_api_key || process.env.EMAIL_CHECKER_HIBP_API_KEY || null,
     yahoo_verif_method:
       parseBackwardCompatMethod(request.yahoo_verif_method, ["api", "headless", "smtp"]) ||
       null,

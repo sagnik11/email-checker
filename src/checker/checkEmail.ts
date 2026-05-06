@@ -86,16 +86,17 @@ async function checkEmail(rawInput = {}) {
   const input = {
     to_email: String(rawInput.to_email || "").trim(),
     from_email:
-      rawInput.from_email || process.env.WQ_FROM_EMAIL || "noreply@worqhat.com",
+      rawInput.from_email || process.env.EMAIL_CHECKER_FROM_EMAIL || "noreply@example.com",
     hello_name:
-      rawInput.hello_name || process.env.WQ_HELLO_NAME || "worqhat.com",
+      rawInput.hello_name || process.env.EMAIL_CHECKER_HELLO_NAME || "example.com",
     smtp_port: Number(rawInput.smtp_port || 25),
     retries: Number(rawInput.retries || 1),
     proxy: rawInput.proxy || null,
     check_gravatar: Boolean(rawInput.check_gravatar),
     haveibeenpwned_api_key:
-      rawInput.haveibeenpwned_api_key || process.env.WQ_HIBP_API_KEY || null,
-    backend_name: rawInput.backend_name || process.env.WQ_BACKEND_NAME || "backend-dev",
+      rawInput.haveibeenpwned_api_key || process.env.EMAIL_CHECKER_HIBP_API_KEY || null,
+    backend_name:
+      rawInput.backend_name || process.env.EMAIL_CHECKER_BACKEND_NAME || "backend-dev",
     smtp_timeout_ms:
       typeof rawInput.smtp_timeout_ms === "number"
         ? rawInput.smtp_timeout_ms

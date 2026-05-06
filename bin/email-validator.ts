@@ -6,8 +6,8 @@ const { checkEmail, startServer, startWorker } = require("../src/index");
 
 const program = new Command();
 program
-  .name("wq-email-checker")
-  .description("WorqHat Email Checker Node backend and CLI")
+  .name("email-validator")
+  .description("Email Validation Service backend and CLI")
   .version("0.2.0");
 
 program

@@ -47,7 +47,7 @@ function requireWorkerDb(runtime) {
       code: 503,
       body: {
         error:
-          "Please enable worker mode on WorqHat Email Checker before calling this endpoint",
+          "Please enable worker mode before calling this endpoint",
       },
     };
   }
@@ -58,7 +58,7 @@ function requireWorkerDb(runtime) {
       code: 503,
       body: {
         error:
-          "Please configure a Postgres database on WorqHat Email Checker before calling this endpoint",
+          "Please configure a Postgres database before calling this endpoint",
       },
     };
   }
