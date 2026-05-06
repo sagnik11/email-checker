@@ -25,6 +25,17 @@ x-api-secret: <your-secret>
 
 If this header is missing or invalid, API returns `400`.
 
+### Optional browser bypass
+
+If you want the built-in web page on the same domain to call the API without sending
+`x-api-secret`, enable:
+
+```env
+EMAIL_CHECKER__ALLOW_BROWSER_WITHOUT_SECRET=true
+```
+
+This bypass is only applied for same-origin browser requests (based on `Origin`/`Referer`).
+
 ## 2.1) CORS (Frontend Apps)
 
 If your main app calls this API from the browser, configure allowed origins.

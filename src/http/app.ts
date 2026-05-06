@@ -59,8 +59,39 @@ function applyCors(req, res, allowedOrigins) {
   res.setHeader("Access-Control-Max-Age", "86400");
 }
 
+function isSameOriginBrowserRequest(req) {
+  const host = String(req.headers.host || "").toLowerCase();
+  if (!host) return false;
+
+  const origin = String(req.headers.origin || "").trim();
+  if (origin) {
+    try {
+      const originHost = new URL(origin).host.toLowerCase();
+      if (originHost === host) {
+        return true;
+      }
+    } catch (_) {}
+  }
+
+  const referer = String(req.headers.referer || "").trim();
+  if (referer) {
+    try {
+      const refererHost = new URL(referer).host.toLowerCase();
+      if (refererHost === host) {
+        return true;
+      }
+    } catch (_) {}
+  }
+
+  return false;
+}
+
 function checkHeaderSecret(req, config) {
   if (!config.header_secret) {
+    return { ok: true };
+  }
+
+  if (config.allow_browser_without_secret && isSameOriginBrowserRequest(req)) {
     return { ok: true };
   }
 

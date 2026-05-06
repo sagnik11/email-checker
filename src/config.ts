@@ -18,6 +18,7 @@ function defaultConfig() {
     http_host: "127.0.0.1",
     http_port: 8080,
     header_secret: null,
+    allow_browser_without_secret: false,
     sentry_dsn: null,
     worker: {
       enable: false,

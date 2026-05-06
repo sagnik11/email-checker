@@ -72,6 +72,7 @@ Environment overrides use `EMAIL_CHECKER__...` keys:
 - `EMAIL_CHECKER__HTTP_HOST=0.0.0.0`
 - `EMAIL_CHECKER__HTTP_PORT=8080`
 - `EMAIL_CHECKER__HEADER_SECRET=my-secret`
+- `EMAIL_CHECKER__ALLOW_BROWSER_WITHOUT_SECRET=true` (optional)
 - `EMAIL_CHECKER__WORKER__ENABLE=true`
 - `EMAIL_CHECKER__WORKER__RABBITMQ__URL=amqp://guest:guest@localhost:5672`
 - `EMAIL_CHECKER__STORAGE__POSTGRES__DB_URL=postgresql://localhost/email_checker_db`
