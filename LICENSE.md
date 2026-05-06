@@ -1,11 +1,11 @@
-`wq-email-checker`'s source code is provided under a **dual license model**.
+`Email Validation Service` source code is provided under a **dual license model**.
 
 ### Commercial license
 
-If you want to use `wq-email-checker` to develop commercial sites, tools, and applications, the Commercial License is the appropriate license. With this option, your source code is kept proprietary. Purchase a `wq-email-checker` Commercial License at https://autter.dev.
+If you want to use `Email Validation Service` to develop commercial sites, tools, and applications, the Commercial License is the appropriate license. With this option, your source code is kept proprietary.
 
 ### Open source license
 
-If you are creating an open source application under a license compatible with the GNU Affero GPL license v3, you may use `wq-email-checker` under the terms of the [AGPL-3.0](./LICENSE.AGPL).
+If you are creating an open source application under a license compatible with the GNU Affero GPL license v3, you may use `Email Validation Service` under the terms of the [AGPL-3.0](./LICENSE.AGPL).
 
-[Read more](https://autter.dev) about this project's licensing.
+Read more in your project's licensing and legal documentation.

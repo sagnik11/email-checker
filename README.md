@@ -1,8 +1,8 @@
-# wq-email-checker-node
+# Email Validation Service
 
 [![Autter](https://autter.dev/logo-dark.png)](https://autter.dev)
 
-TypeScript-based email verification backend and CLI by [Autter](https://autter.dev).
+TypeScript-based email verification backend and CLI.
 
 ## Sponsor
 
@@ -10,7 +10,7 @@ This project is sponsored by **[Autter](https://autter.dev)**.
 
 ## What It Does
 
-`wq-email-checker-node` validates email addresses without sending an email by combining:
+`Email Validation Service` validates email addresses without sending an email by combining:
 
 - syntax validation
 - MX DNS checks
@@ -23,7 +23,7 @@ It supports:
 - HTTP API (`/v1/check_email`, `/v1/bulk`, bulk status/results routes)
 - worker mode (RabbitMQ queue + async processing)
 - Postgres persistence for bulk and task outputs
-- installable CLI (`wq-email-checker`)
+- installable CLI (`email-validator`)
 - browser-based quick check page at `/`
 
 ## Tech Stack
@@ -64,17 +64,17 @@ Default config file path:
 
 Default SMTP identity:
 
-- `from_email = noreply@autter.dev`
-- `hello_name = autter.dev`
+- `from_email = noreply@example.com`
+- `hello_name = example.com`
 
-Environment overrides use `WQ__...` keys:
+Environment overrides use `EMAIL_CHECKER__...` keys:
 
-- `WQ__HTTP_HOST=0.0.0.0`
-- `WQ__HTTP_PORT=8080`
-- `WQ__HEADER_SECRET=my-secret`
-- `WQ__WORKER__ENABLE=true`
-- `WQ__WORKER__RABBITMQ__URL=amqp://guest:guest@localhost:5672`
-- `WQ__STORAGE__POSTGRES__DB_URL=postgresql://localhost/wq_email_checker_db`
+- `EMAIL_CHECKER__HTTP_HOST=0.0.0.0`
+- `EMAIL_CHECKER__HTTP_PORT=8080`
+- `EMAIL_CHECKER__HEADER_SECRET=my-secret`
+- `EMAIL_CHECKER__WORKER__ENABLE=true`
+- `EMAIL_CHECKER__WORKER__RABBITMQ__URL=amqp://guest:guest@localhost:5672`
+- `EMAIL_CHECKER__STORAGE__POSTGRES__DB_URL=postgresql://localhost/email_checker_db`
 
 `PORT` is also respected and mapped to `http_port`.
 
@@ -83,25 +83,25 @@ Environment overrides use `WQ__...` keys:
 Show help:
 
 ```bash
-wq-email-checker --help
+email-validator --help
 ```
 
 Run HTTP server:
 
 ```bash
-wq-email-checker serve --config ./backend_config.toml
+email-validator serve --config ./backend_config.toml
 ```
 
 Run worker only:
 
 ```bash
-wq-email-checker worker --config ./backend_config.toml
+email-validator worker --config ./backend_config.toml
 ```
 
 Direct one-off check:
 
 ```bash
-wq-email-checker check someone@gmail.com
+email-validator check someone@gmail.com
 ```
 
 ## API
@@ -158,9 +158,9 @@ for deploying the HTTP API as a serverless function.
 
 ### Recommended Vercel Env Vars
 
-- `WQ__HEADER_SECRET`
-- `WQ__HTTP_HOST` (optional)
-- `WQ__HTTP_PORT` (optional)
+- `EMAIL_CHECKER__HEADER_SECRET`
+- `EMAIL_CHECKER__HTTP_HOST` (optional)
+- `EMAIL_CHECKER__HTTP_PORT` (optional)
 - any SMTP/proxy/env overrides you use
 
 ### Important Vercel Notes

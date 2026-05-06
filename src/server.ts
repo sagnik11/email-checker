@@ -58,7 +58,7 @@ if (require.main === module) {
     .then(({ runtime }) => {
       // eslint-disable-next-line no-console
       console.log(
-        `wq-email-checker-node listening on http://${runtime.config.http_host}:${runtime.config.http_port}`
+        `email-validation-service listening on http://${runtime.config.http_host}:${runtime.config.http_port}`
       );
     })
     .catch((err) => {

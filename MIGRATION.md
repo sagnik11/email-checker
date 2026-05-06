@@ -52,7 +52,7 @@ It contains:
 
 - `nodejs/src/http/app.js`
   - all HTTP routes
-  - header auth checks (`x-wq-secret`)
+  - header auth checks (`x-api-secret`)
   - v1 worker RPC handling
   - bulk progress and results (JSON/CSV)
 - `nodejs/src/http/requestMapper.js`
@@ -81,14 +81,14 @@ It contains:
 - `nodejs/src/throttle.js`
   - in-memory rate limiting manager
 - `nodejs/src/config.js`
-  - TOML + env config loader (`WQ__...` overrides)
+  - TOML + env config loader (`EMAIL_CHECKER__...` overrides)
 - `nodejs/src/runtime.js`
   - runtime construction (config/storage/throttle/rabbit)
 
 ### Entrypoints
 
 - `nodejs/src/server.js` (API server)
-- `nodejs/bin/wq-email-checker.js` (installable CLI)
+- `nodejs/bin/email-validator.js` (installable CLI)
 - `nodejs/src/index.js` (library exports)
 - `nodejs/public/index.html` (web UI)
 
@@ -153,35 +153,35 @@ Default config file used by CLI/server:
 
 Env override convention:
 
-- `WQ__SECTION__KEY=value`
+- `EMAIL_CHECKER__SECTION__KEY=value`
 
 Examples:
 
-- `WQ__HTTP_HOST=0.0.0.0`
-- `WQ__HTTP_PORT=8080`
-- `WQ__HEADER_SECRET=my-secret`
-- `WQ__WORKER__ENABLE=true`
-- `WQ__WORKER__RABBITMQ__URL=amqp://guest:guest@localhost:5672`
-- `WQ__STORAGE__POSTGRES__DB_URL=postgresql://localhost/wq_email_checker_db`
+- `EMAIL_CHECKER__HTTP_HOST=0.0.0.0`
+- `EMAIL_CHECKER__HTTP_PORT=8080`
+- `EMAIL_CHECKER__HEADER_SECRET=my-secret`
+- `EMAIL_CHECKER__WORKER__ENABLE=true`
+- `EMAIL_CHECKER__WORKER__RABBITMQ__URL=amqp://guest:guest@localhost:5672`
+- `EMAIL_CHECKER__STORAGE__POSTGRES__DB_URL=postgresql://localhost/email_checker_db`
 
 ## 7) Running modes
 
 ### API only
 
 ```bash
-wq-email-checker serve --config ./backend_config.toml --no-inline-worker
+email-validator serve --config ./backend_config.toml --no-inline-worker
 ```
 
 ### Worker only
 
 ```bash
-wq-email-checker worker --config ./backend_config.toml
+email-validator worker --config ./backend_config.toml
 ```
 
 ### API + in-process worker
 
 ```bash
-wq-email-checker serve --config ./backend_config.toml
+email-validator serve --config ./backend_config.toml
 ```
 
 (when `worker.enable = true`)
@@ -191,7 +191,7 @@ wq-email-checker serve --config ./backend_config.toml
 Direct check from CLI:
 
 ```bash
-wq-email-checker check someone@gmail.com --smtp-port 25 --retries 2
+email-validator check someone@gmail.com --smtp-port 25 --retries 2
 ```
 
 ## 9) Notes on provider-specific methods
@@ -216,6 +216,6 @@ For production-like deployment:
 
 For local quick use:
 
-1. Run `wq-email-checker serve`.
+1. Run `email-validator serve`.
 2. Open `http://127.0.0.1:8080/` and test with the web form.
-3. Or use `wq-email-checker check someone@gmail.com`.
+3. Or use `email-validator check someone@gmail.com`.

@@ -20,12 +20,12 @@ function checkHeaderSecret(req, config) {
     return { ok: true };
   }
 
-  const actual = req.header("x-wq-secret");
+  const actual = req.header("x-api-secret");
   if (!actual) {
     return {
       ok: false,
       code: 400,
-      body: { error: 'Missing request header "x-wq-secret"' },
+      body: { error: 'Missing request header "x-api-secret"' },
     };
   }
 
@@ -33,7 +33,7 @@ function checkHeaderSecret(req, config) {
     return {
       ok: false,
       code: 400,
-      body: { error: 'Invalid request header "x-wq-secret"' },
+      body: { error: 'Invalid request header "x-api-secret"' },
     };
   }
 

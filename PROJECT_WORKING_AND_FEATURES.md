@@ -1,10 +1,10 @@
 # Project Working And Features
 
-This document explains the architecture, runtime flow, and deployment model of `wq-email-checker-node`.
+This document explains the architecture, runtime flow, and deployment model of `Email Validation Service`.
 
 ## 1) Overview
 
-`wq-email-checker-node` is a TypeScript email verification backend and CLI.
+`Email Validation Service` is a TypeScript email verification backend and CLI.
 
 It verifies an email address without sending mail by combining:
 
@@ -23,7 +23,7 @@ The project supports both synchronous API checks and asynchronous queue-backed b
   - `src/http/` - Express API handlers
   - `src/worker/` - RabbitMQ queue setup and worker loop
   - `src/storage/` - storage abstraction + Postgres implementation
-- `bin/wq-email-checker.ts` - CLI entrypoint
+- `bin/email-validator.ts` - CLI entrypoint
 - `public/` - static web UI served at `/`
 - `test/` - test suite
 - `api/index.ts` - Vercel serverless entrypoint
@@ -84,7 +84,7 @@ It is applied in API request processing and worker task handling.
 
 Global binary:
 
-- `wq-email-checker`
+- `email-validator`
 
 Commands:
 
@@ -143,7 +143,7 @@ App setup:
 
 If `header_secret` is configured, protected endpoints require:
 
-- `x-wq-secret: <secret>`
+- `x-api-secret: <secret>`
 
 ### 5.2 `POST /v1/check_email`
 
@@ -215,36 +215,36 @@ Config sources (merge order):
 
 1. defaults
 2. `backend_config.toml` (or explicit `configPath`)
-3. env overrides (`WQ__...`)
+3. env overrides (`EMAIL_CHECKER__...`)
 4. `PORT` fallback for `http_port`
 
 Examples:
 
-- `WQ__HTTP_HOST=0.0.0.0`
-- `WQ__HTTP_PORT=8080`
-- `WQ__HEADER_SECRET=my-secret`
-- `WQ__WORKER__ENABLE=true`
-- `WQ__WORKER__RABBITMQ__URL=amqp://guest:guest@localhost:5672`
-- `WQ__STORAGE__POSTGRES__DB_URL=postgresql://localhost/wq_email_checker_db`
+- `EMAIL_CHECKER__HTTP_HOST=0.0.0.0`
+- `EMAIL_CHECKER__HTTP_PORT=8080`
+- `EMAIL_CHECKER__HEADER_SECRET=my-secret`
+- `EMAIL_CHECKER__WORKER__ENABLE=true`
+- `EMAIL_CHECKER__WORKER__RABBITMQ__URL=amqp://guest:guest@localhost:5672`
+- `EMAIL_CHECKER__STORAGE__POSTGRES__DB_URL=postgresql://localhost/email_checker_db`
 
 ## 9) Runtime Modes
 
 ### 9.1 API Only (No Worker Inline)
 
 ```bash
-wq-email-checker serve --config ./backend_config.toml --no-inline-worker
+email-validator serve --config ./backend_config.toml --no-inline-worker
 ```
 
 ### 9.2 Worker Only
 
 ```bash
-wq-email-checker worker --config ./backend_config.toml
+email-validator worker --config ./backend_config.toml
 ```
 
 ### 9.3 API + Inline Worker
 
 ```bash
-wq-email-checker serve --config ./backend_config.toml
+email-validator serve --config ./backend_config.toml
 ```
 
 Use when `worker.enable = true` and you want a simpler single-process runtime.

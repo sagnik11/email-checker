@@ -3,14 +3,14 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { loadConfig } = require("../src/config");
 
-test("env overrides map WQ__ paths", () => {
+test("env overrides map EMAIL_CHECKER__ paths", () => {
   const cfg = loadConfig({
     fromObject: {},
     env: {
-      WQ__HTTP_PORT: "9090",
-      WQ__WORKER__ENABLE: "true",
-      WQ__WORKER__RABBITMQ__CONCURRENCY: "7",
-      WQ__STORAGE__POSTGRES__DB_URL: "postgres://localhost/test",
+      EMAIL_CHECKER__HTTP_PORT: "9090",
+      EMAIL_CHECKER__WORKER__ENABLE: "true",
+      EMAIL_CHECKER__WORKER__RABBITMQ__CONCURRENCY: "7",
+      EMAIL_CHECKER__STORAGE__POSTGRES__DB_URL: "postgres://localhost/test",
     },
   });
 

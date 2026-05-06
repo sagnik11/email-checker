@@ -70,7 +70,7 @@ async function checkHaveIBeenPwned(email, apiKey) {
       url,
       {
         headers: {
-          "User-Agent": "wq-email-checker-node",
+          "User-Agent": "email-validation-service",
           "hibp-api-key": apiKey,
         },
       },
