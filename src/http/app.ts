@@ -1,3 +1,4 @@
+// @ts-nocheck
 const crypto = require("node:crypto");
 const path = require("node:path");
 const express = require("express");

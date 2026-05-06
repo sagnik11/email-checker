@@ -1,3 +1,4 @@
+// @ts-nocheck
 const { Pool } = require("pg");
 
 const MIGRATION_SQL = `

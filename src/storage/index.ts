@@ -1,3 +1,4 @@
+// @ts-nocheck
 const { PostgresStorage } = require("./postgres");
 
 class NoopStorage {

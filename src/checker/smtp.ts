@@ -1,3 +1,4 @@
+// @ts-nocheck
 const net = require("node:net");
 const tls = require("node:tls");
 const crypto = require("node:crypto");

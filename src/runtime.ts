@@ -1,3 +1,4 @@
+// @ts-nocheck
 const { loadConfig } = require("./config");
 const { createStorage } = require("./storage");
 const { ThrottleManager } = require("./throttle");

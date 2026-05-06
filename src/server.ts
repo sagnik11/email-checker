@@ -1,3 +1,4 @@
+// @ts-nocheck
 const { createRuntime } = require("./runtime");
 const { createApp } = require("./http/app");
 const { startWorker } = require("./worker/run");

@@ -1,3 +1,4 @@
+// @ts-nocheck
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { checkEmail } = require("../src/checker/checkEmail");

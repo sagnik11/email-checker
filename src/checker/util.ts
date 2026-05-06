@@ -1,3 +1,4 @@
+// @ts-nocheck
 function levenshtein(a, b) {
   const s = String(a || "");
   const t = String(b || "");

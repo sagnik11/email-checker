@@ -1,3 +1,4 @@
+// @ts-nocheck
 const dns = require("node:dns/promises");
 const { normalizeMxHost } = require("./rules");
 

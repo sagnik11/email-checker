@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-nocheck
 
 const { Command } = require("commander");
 const { checkEmail, startServer, startWorker } = require("../src/index");

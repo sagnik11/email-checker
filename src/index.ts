@@ -1,3 +1,4 @@
+// @ts-nocheck
 const { checkEmail } = require("./checker/checkEmail");
 const { startServer } = require("./server");
 const { startWorker } = require("./worker/run");

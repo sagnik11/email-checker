@@ -1,3 +1,4 @@
+// @ts-nocheck
 const IsEmail = require("isemail");
 const { levenshtein } = require("./util");
 

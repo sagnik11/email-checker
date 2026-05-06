@@ -1,3 +1,4 @@
+// @ts-nocheck
 const amqp = require("amqplib");
 
 const CHECK_EMAIL_QUEUE = "check_email";

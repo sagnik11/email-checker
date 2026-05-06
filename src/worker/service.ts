@@ -1,3 +1,4 @@
+// @ts-nocheck
 const { checkEmail } = require("../checker/checkEmail");
 
 function taskError(message, statusCode = 500) {

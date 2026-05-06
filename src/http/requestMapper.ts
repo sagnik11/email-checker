@@ -1,3 +1,4 @@
+// @ts-nocheck
 function pickSmtpConfigFromConfig(config) {
   return {
     hello_name: config.hello_name,

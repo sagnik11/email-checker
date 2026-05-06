@@ -1,3 +1,4 @@
+// @ts-nocheck
 class ThrottleManager {
   constructor(config = {}) {
     this.config = {

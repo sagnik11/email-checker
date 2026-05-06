@@ -1,3 +1,4 @@
+// @ts-nocheck
 function containsAny(haystack, needles) {
   return needles.some((needle) => haystack.includes(needle));
 }

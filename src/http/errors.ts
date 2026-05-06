@@ -1,3 +1,4 @@
+// @ts-nocheck
 function badRequest(res, message) {
   return res.status(400).json({ error: String(message) });
 }

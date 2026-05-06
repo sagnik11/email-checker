@@ -1,3 +1,4 @@
+// @ts-nocheck
 const fs = require("node:fs");
 const path = require("node:path");
 const toml = require("toml");

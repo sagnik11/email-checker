@@ -1,3 +1,4 @@
+// @ts-nocheck
 function isGmail(mxHost) {
   return String(mxHost || "").toLowerCase().endsWith(".google.com.");
 }

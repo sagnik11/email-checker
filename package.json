@@ -4,19 +4,29 @@
   "description": "Node.js port of WorqHat Email Checker backend + CLI",
   "license": "AGPL-3.0-or-later",
   "type": "commonjs",
-  "main": "src/index.js",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
   "bin": {
-    "wq-email-checker": "bin/wq-email-checker.js"
+    "wq-email-checker": "dist/bin/wq-email-checker.js"
   },
   "engines": {
     "node": ">=18"
   },
   "scripts": {
-    "dev": "node src/server.js",
-    "dev:worker": "node src/worker/run.js",
-    "start": "node src/server.js",
-    "worker": "node src/worker/run.js",
-    "test": "node --test test/*.test.js"
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/server.ts",
+    "dev:worker": "tsx src/worker/run.ts",
+    "start": "node dist/src/server.js",
+    "worker": "node dist/src/worker/run.js",
+    "test": "tsx --test test/*.test.ts"
+  },
+  "devDependencies": {
+    "@types/amqplib": "^0.10.7",
+    "@types/express": "^5.0.3",
+    "@types/node": "^24.10.0",
+    "@types/pg": "^8.15.6",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
   },
   "dependencies": {
     "amqplib": "^0.10.7",

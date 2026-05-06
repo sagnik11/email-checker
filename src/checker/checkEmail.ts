@@ -1,3 +1,4 @@
+// @ts-nocheck
 const { checkSyntax, getSimilarMailProvider } = require("./syntax");
 const { checkMx } = require("./mx");
 const { checkMisc } = require("./misc");

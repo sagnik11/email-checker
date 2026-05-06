@@ -1,3 +1,4 @@
+// @ts-nocheck
 const crypto = require("node:crypto");
 const mailchecker = require("mailchecker");
 const disposableEmailDomains = require("disposable-email-domains");

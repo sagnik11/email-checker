@@ -1,3 +1,4 @@
+// @ts-nocheck
 const { rules } = require("./data");
 
 const Rule = {

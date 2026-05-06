@@ -1,3 +1,4 @@
+// @ts-nocheck
 function serializeSingleShotReply(workerOutput) {
   if (workerOutput.ok) {
     return {
