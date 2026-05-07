@@ -176,3 +176,4 @@ Detailed architecture and operational guide:
 
 - `PROJECT_WORKING_AND_FEATURES.md`
 - `API_DOCUMENTATION.md`
+- `FLY_DEPLOYMENT.md`
