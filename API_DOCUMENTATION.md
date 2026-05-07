@@ -1,110 +1,126 @@
-# API Documentation (External Integrations)
+# API Reference
 
-This guide explains how an external application can integrate with the Email Validation Service API.
+Complete reference for integrating with the Email Validator HTTP API.
 
-## 1) Base URL
+---
 
-Use your deployed API base URL, for example:
+## Base URL
 
-- Local: `http://127.0.0.1:8080`
-- Production: `https://your-domain.com`
+| Environment | URL |
+|---|---|
+| Local dev | `http://127.0.0.1:8080` |
+| Production | `https://your-domain.com` |
 
-All examples below assume:
+All examples below use:
 
-```text
+```bash
 BASE_URL=http://127.0.0.1:8080
 ```
 
-## 2) Authentication
+---
 
-If `header_secret` is configured on the server, every protected endpoint must include:
+## Authentication
+
+If `header_secret` is set in your server config, every protected endpoint must include:
 
 ```http
 x-api-secret: <your-secret>
 ```
 
-If this header is missing or invalid, API returns `400`.
+A missing or wrong secret returns `400`.
 
-### Optional browser bypass
-
-If you want the built-in web page on the same domain to call the API without sending
-`x-api-secret`, enable:
+**Tip:** To allow your own web UI (served on the same origin) to call the API without the secret header, set:
 
 ```env
 EMAIL_CHECKER__ALLOW_BROWSER_WITHOUT_SECRET=true
 ```
 
-This bypass is only applied for same-origin browser requests (based on `Origin`/`Referer`).
+This bypass only applies to same-origin browser requests (checked via `Origin`/`Referer`).
 
-## 2.1) CORS (Frontend Apps)
+---
 
-If your main app calls this API from the browser, configure allowed origins.
+## CORS
 
-- Default: `*`
-- Config key: `cors.origins`
-- Env override example:
+For browser-based apps calling the API cross-origin, configure allowed origins:
 
 ```env
-EMAIL_CHECKER__CORS__ORIGINS=https://your-main-app.com,https://www.your-main-app.com
+EMAIL_CHECKER__CORS__ORIGINS=https://app.example.com,https://www.app.example.com
 ```
 
-## 3) Content Type
+Default: `*` (all origins allowed).
 
-Send JSON payloads with:
+---
+
+## Content Type
+
+All request bodies must be JSON:
 
 ```http
-content-type: application/json
+Content-Type: application/json
 ```
 
-## 4) Endpoints
+---
 
-### 4.1 Health Check
+## Endpoints
 
-**GET** `/health`
+### Health Check
 
-Use this endpoint to verify service availability.
+**`GET /health`**
 
-Response:
+Returns `200` when the service is running.
+
+```bash
+curl "$BASE_URL/health"
+```
 
 ```json
 { "ok": true }
 ```
 
-### 4.2 Version
+---
 
-**GET** `/version`
+### Version
 
-Response:
+**`GET /version`**
+
+Returns the current package version.
+
+```bash
+curl "$BASE_URL/version"
+```
 
 ```json
 { "version": "0.2.0" }
 ```
 
-### 4.3 Single Email Validation
+---
 
-**POST** `/v1/check_email`
+### Single Email Validation
 
-#### Required field
+**`POST /v1/check_email`**
 
-- `to_email` (string)
+Validates one email address synchronously. Returns a structured result with syntax, DNS, SMTP, and metadata checks.
 
-#### Optional fields
+#### Request body
 
-- `check_gravatar` (boolean)
-- `haveibeenpwned_api_key` (string)
-- `proxy` (object)
-- `hello_name` (string)
-- `from_email` (string)
-- `smtp_timeout` (number, seconds)
-- `smtp_port` (number)
-- `yahoo_verif_method` (`api` | `headless` | `smtp`)
-- `hotmailb2c_verif_method` (`headless` | `smtp`)
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `to_email` | string | ✅ | The email address to validate |
+| `check_gravatar` | boolean | | Fetch Gravatar profile image URL |
+| `haveibeenpwned_api_key` | string | | Check address against HaveIBeenPwned breach database |
+| `proxy` | object | | Route SMTP through a SOCKS5 proxy |
+| `hello_name` | string | | Override EHLO domain sent to remote SMTP |
+| `from_email` | string | | Override MAIL FROM address |
+| `smtp_timeout` | number | | SMTP connection timeout in seconds |
+| `smtp_port` | number | | SMTP port (default: `25`) |
+| `yahoo_verif_method` | `"api"` \| `"headless"` \| `"smtp"` | | Yahoo verification strategy |
+| `hotmailb2c_verif_method` | `"headless"` \| `"smtp"` | | Hotmail/Outlook verification strategy |
 
-Example request:
+#### Example
 
 ```bash
 curl -X POST "$BASE_URL/v1/check_email" \
-  -H "content-type: application/json" \
+  -H "Content-Type: application/json" \
   -H "x-api-secret: YOUR_SECRET" \
   -d '{
     "to_email": "someone@gmail.com",
@@ -112,7 +128,7 @@ curl -X POST "$BASE_URL/v1/check_email" \
   }'
 ```
 
-Example response (shape):
+#### Response
 
 ```json
 {
@@ -138,144 +154,194 @@ Example response (shape):
   "debug": {
     "backend_name": "backend-dev",
     "start_time": "2026-01-01T00:00:00.000Z",
-    "end_time": "2026-01-01T00:00:00.000Z",
-    "duration": "0ms"
+    "end_time": "2026-01-01T00:00:01.200Z",
+    "duration": "1200ms"
   }
 }
 ```
 
-`is_reachable` possible values:
+#### `is_reachable` values
 
-- `safe`
-- `risky`
-- `invalid`
-- `unknown`
+| Value | Meaning |
+|---|---|
+| `safe` | Mailbox exists and appears deliverable |
+| `risky` | Potentially deliverable but flagged (disposable, role, catch-all, etc.) |
+| `invalid` | Address does not exist or domain rejects mail |
+| `unknown` | Inconclusive — network timeout, greylisting, or provider restrictions |
 
-### 4.4 Bulk Validation (Async)
+---
 
-Bulk endpoints require all of the following:
+### Bulk Validation (Async)
 
-- `worker.enable = true`
-- Postgres storage configured
-- RabbitMQ configured and available
+Bulk endpoints require:
 
-#### Create bulk job
+- `worker.enable = true` in config
+- Postgres storage configured (`storage.postgres.db_url`)
+- RabbitMQ running and reachable
 
-**POST** `/v1/bulk`
+#### Create a bulk job
 
-Request body:
+**`POST /v1/bulk`**
 
-- `input` (string[]) required
-- `webhook` (string, optional)
+Submit a list of emails for async processing.
 
-Example:
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `input` | string[] | ✅ | List of email addresses to validate |
+| `webhook` | string | | URL to POST results to when the job finishes |
 
 ```bash
 curl -X POST "$BASE_URL/v1/bulk" \
-  -H "content-type: application/json" \
+  -H "Content-Type: application/json" \
   -H "x-api-secret: YOUR_SECRET" \
   -d '{
-    "input": ["a@example.com", "b@example.com"]
+    "input": ["alice@example.com", "bob@example.com", "invalid@nodomain.xyz"]
   }'
 ```
 
-Response:
-
 ```json
-{ "job_id": 123 }
+{ "job_id": 42 }
 ```
 
-#### Check bulk progress
+#### Poll job progress
 
-**GET** `/v1/bulk/:id`
-
-Example:
+**`GET /v1/bulk/:id`**
 
 ```bash
-curl "$BASE_URL/v1/bulk/123" -H "x-api-secret: YOUR_SECRET"
-```
-
-#### Get bulk results
-
-**GET** `/v1/bulk/:id/results?format=json|csv&limit=<n>&offset=<n>`
-
-Notes:
-
-- For `format=json`, default page size is `50` when `limit` is not supplied.
-- For `format=csv`, all rows are returned unless `limit` is provided.
-
-JSON example:
-
-```bash
-curl "$BASE_URL/v1/bulk/123/results?format=json&limit=100&offset=0" \
+curl "$BASE_URL/v1/bulk/42" \
   -H "x-api-secret: YOUR_SECRET"
 ```
 
-CSV example:
+Returns current progress (total, processed, failed counts and status).
+
+#### Fetch results
+
+**`GET /v1/bulk/:id/results`**
+
+Query parameters:
+
+| Param | Values | Default | Description |
+|---|---|---|---|
+| `format` | `json` \| `csv` | `json` | Output format |
+| `limit` | number | `50` (JSON), all (CSV) | Max rows to return |
+| `offset` | number | `0` | Pagination offset |
 
 ```bash
-curl "$BASE_URL/v1/bulk/123/results?format=csv" \
+# JSON (paginated)
+curl "$BASE_URL/v1/bulk/42/results?format=json&limit=100&offset=0" \
   -H "x-api-secret: YOUR_SECRET"
+
+# CSV (full export)
+curl "$BASE_URL/v1/bulk/42/results?format=csv" \
+  -H "x-api-secret: YOUR_SECRET" \
+  -o results.csv
 ```
 
-## 5) Error Handling
+---
 
-Typical error response:
+## Error Responses
+
+All errors return JSON:
 
 ```json
-{ "error": "message" }
+{ "error": "human-readable message" }
 ```
 
-Common status codes:
+| Status | Meaning |
+|---|---|
+| `200` | Success |
+| `400` | Bad request — missing/invalid field or wrong/missing `x-api-secret` |
+| `429` | Rate limited — try again after a short delay |
+| `500` | Internal server error |
+| `503` | Infrastructure not available (worker/RabbitMQ/Postgres not configured) |
 
-- `200` success
-- `400` bad request / missing header / invalid input
-- `429` throttled
-- `500` internal server error
-- `503` worker or infrastructure requirements not met
+---
 
-## 6) Recommended External App Flow
+## Integration Examples
 
-### Single email
+### JavaScript / TypeScript
 
-1. Call `POST /v1/check_email`
-2. Read `is_reachable`
-3. Use `misc`, `smtp`, and `syntax` for UX or risk policy decisions
+```ts
+const BASE_URL = process.env.EMAIL_API_BASE_URL!;
+const API_SECRET = process.env.EMAIL_API_SECRET!;
 
-### Bulk
-
-1. Call `POST /v1/bulk`
-2. Store `job_id`
-3. Poll `GET /v1/bulk/:id`
-4. Fetch final output from `GET /v1/bulk/:id/results`
-
-## 7) JavaScript Integration Example
-
-```js
-const BASE_URL = process.env.EMAIL_API_BASE_URL;
-const API_SECRET = process.env.EMAIL_API_SECRET;
-
-async function validateEmail(toEmail) {
+async function validateEmail(email: string) {
   const res = await fetch(`${BASE_URL}/v1/check_email`, {
     method: "POST",
     headers: {
-      "content-type": "application/json",
+      "Content-Type": "application/json",
       "x-api-secret": API_SECRET,
     },
-    body: JSON.stringify({ to_email: toEmail }),
+    body: JSON.stringify({ to_email: email }),
   });
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || `Request failed: ${res.status}`);
+    throw new Error((err as any).error ?? `HTTP ${res.status}`);
   }
 
   return res.json();
 }
+
+const result = await validateEmail("someone@gmail.com");
+console.log(result.is_reachable); // "safe" | "risky" | "invalid" | "unknown"
 ```
 
-## 8) Important Integration Notes
+### Python
 
-- The API accepts large JSON payloads (up to 50MB request body limit).
-- If you send SMTP overrides (`hello_name`, `from_email`, etc.) without a `proxy` object, server-side mapping may fall back to config defaults.
-- For production integrations, set a request timeout and retry policy in your client.
+```python
+import os, requests
+
+BASE_URL = os.environ["EMAIL_API_BASE_URL"]
+API_SECRET = os.environ["EMAIL_API_SECRET"]
+
+def validate_email(email: str) -> dict:
+    resp = requests.post(
+        f"{BASE_URL}/v1/check_email",
+        json={"to_email": email},
+        headers={"x-api-secret": API_SECRET},
+        timeout=30,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+result = validate_email("someone@gmail.com")
+print(result["is_reachable"])
+```
+
+### cURL one-liner
+
+```bash
+curl -s -X POST "$BASE_URL/v1/check_email" \
+  -H "Content-Type: application/json" \
+  -H "x-api-secret: $EMAIL_API_SECRET" \
+  -d "{\"to_email\":\"$EMAIL\"}" | jq '.is_reachable'
+```
+
+---
+
+## Recommended Patterns
+
+### Single email (sign-up validation)
+
+1. Call `POST /v1/check_email`
+2. Check `is_reachable`:
+   - `safe` → accept
+   - `risky` → warn the user or flag for review
+   - `invalid` → reject with a clear error
+   - `unknown` → accept with a soft warning (network issue on our end)
+3. Use `misc.is_disposable`, `misc.is_role_account`, and `syntax` for additional UX logic
+
+### Bulk list cleaning
+
+1. `POST /v1/bulk` → store the returned `job_id`
+2. Poll `GET /v1/bulk/:id` until status is complete
+3. `GET /v1/bulk/:id/results?format=csv` → download and process
+
+---
+
+## Notes
+
+- Request body limit: **50 MB** (suitable for large bulk payloads submitted directly)
+- For production integrations, configure a client-side timeout (recommended: 30–60 s per check) and a retry policy with exponential backoff
+- SMTP checks depend on remote server availability; `unknown` results are normal for some providers and do not indicate a bug

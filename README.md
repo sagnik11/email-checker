@@ -1,117 +1,68 @@
-# Email Validation Service
+# Email Validator
 
-[![Autter](https://autter.dev/logo-dark.png)](https://autter.dev)
+<p align="center">
+  <strong>Verify email addresses without sending a single email.</strong><br/>
+  Deep validation via syntax checks, MX DNS lookups, and live SMTP handshakes — with disposable/role/B2C detection built in.
+</p>
 
-TypeScript-based email verification backend and CLI.
+<p align="center">
+  <a href="https://github.com/sagnik11/check-if-email-exists-master/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License: AGPL-3.0"></a>
+  <a href="https://nodejs.org/"><img src="https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg" alt="Node.js ≥18"></a>
+  <img src="https://img.shields.io/badge/built%20with-TypeScript-3178c6.svg" alt="TypeScript">
+  <a href="https://github.com/sagnik11/check-if-email-exists-master/issues"><img src="https://img.shields.io/github/issues/sagnik11/check-if-email-exists-master.svg" alt="Open issues"></a>
+</p>
 
-## Sponsor
+---
 
-This project is sponsored by **[Autter](https://autter.dev)**.
+## Why use this?
 
-## What It Does
+Sending a welcome email to a bad address wastes resources, hurts deliverability, and burns sender reputation. Most validation libraries only check syntax. **Email Validator** goes further:
 
-`Email Validation Service` validates email addresses without sending an email by combining:
+| Check | What it does |
+|---|---|
+| **Syntax** | RFC-compliant format validation + typo suggestions |
+| **MX DNS** | Confirms the domain actually accepts mail |
+| **SMTP handshake** | Connects directly to the mail server to verify the mailbox exists |
+| **Disposable detection** | Flags throwaway domains (10 minute mail, etc.) |
+| **Role account detection** | Flags `info@`, `noreply@`, `support@`, etc. |
+| **B2C detection** | Identifies consumer providers (Gmail, Outlook, Yahoo) |
+| **Gravatar lookup** | Optional — fetch profile image URL |
+| **HaveIBeenPwned** | Optional — check if the address appears in breach data |
 
-- syntax validation
-- MX DNS checks
-- SMTP conversation checks
-- account risk signals (disposable / role-based / B2C traits)
-- optional Gravatar and HaveIBeenPwned checks
+Every check returns a structured JSON result and a single `is_reachable` verdict: `safe`, `risky`, `invalid`, or `unknown`.
 
-It supports:
+---
 
-- HTTP API (`/v1/check_email`, `/v1/bulk`, bulk status/results routes)
-- worker mode (RabbitMQ queue + async processing)
-- Postgres persistence for bulk and task outputs
-- installable CLI (`email-validator`)
-- browser-based quick check page at `/`
+## Features
 
-## Tech Stack
+- **HTTP API** — single check (`POST /v1/check_email`) and async bulk processing (`POST /v1/bulk`)
+- **CLI** — `email-validator check someone@gmail.com` from your terminal
+- **Web UI** — browser-based quick-check page served at `/`
+- **Queue worker** — RabbitMQ-backed async processing for large lists
+- **Bulk jobs** — submit thousands of addresses, poll for progress, export JSON or CSV
+- **Postgres persistence** — bulk job tracking and result retrieval
+- **Rate limiting** — configurable per-second / minute / hour / day throttling
+- **SOCKS5 proxy support** — route SMTP connections through a proxy
+- **Vercel & Fly.io ready** — deployment configs included
+- **Docker ready** — `Dockerfile` and `.dockerignore` included
 
-- Node.js 18+
-- TypeScript (CommonJS output)
-- Express
-- RabbitMQ (`amqplib`)
-- Postgres (`pg`)
+---
 
 ## Quick Start
 
 ```bash
+# Clone
+git clone https://github.com/sagnik11/check-if-email-exists-master.git
+cd check-if-email-exists-master
+
+# Install dependencies
 npm install
+
+# Start development server
 npm run dev
 ```
 
-Server starts at `http://127.0.0.1:8080` by default.
-
-### Build + Run Compiled Output
-
-```bash
-npm run build
-npm start
-```
-
-### Tests
-
-```bash
-npm test
-```
-
-## Configuration
-
-Default config file path:
-
-- `./backend_config.toml`
-
-Default SMTP identity:
-
-- `from_email = noreply@example.com`
-- `hello_name = example.com`
-
-Environment overrides use `EMAIL_CHECKER__...` keys:
-
-- `EMAIL_CHECKER__HTTP_HOST=0.0.0.0`
-- `EMAIL_CHECKER__HTTP_PORT=8080`
-- `EMAIL_CHECKER__HEADER_SECRET=my-secret`
-- `EMAIL_CHECKER__ALLOW_BROWSER_WITHOUT_SECRET=true` (optional)
-- `EMAIL_CHECKER__WORKER__ENABLE=true`
-- `EMAIL_CHECKER__WORKER__RABBITMQ__URL=amqp://guest:guest@localhost:5672`
-- `EMAIL_CHECKER__STORAGE__POSTGRES__DB_URL=postgresql://localhost/email_checker_db`
-
-`PORT` is also respected and mapped to `http_port`.
-
-## CLI
-
-Show help:
-
-```bash
-email-validator --help
-```
-
-Run HTTP server:
-
-```bash
-email-validator serve --config ./backend_config.toml
-```
-
-Run worker only:
-
-```bash
-email-validator worker --config ./backend_config.toml
-```
-
-Direct one-off check:
-
-```bash
-email-validator check someone@gmail.com
-```
-
-## API
-
-### `GET /version`
-
-Returns current package version.
-
-### `POST /v1/check_email`
+The server starts at `http://127.0.0.1:8080`. Open it in your browser to try the web UI, or call the API directly:
 
 ```bash
 curl -X POST http://127.0.0.1:8080/v1/check_email \
@@ -119,61 +70,185 @@ curl -X POST http://127.0.0.1:8080/v1/check_email \
   -d '{"to_email":"someone@gmail.com"}'
 ```
 
-### `POST /v1/bulk`
+**Example response:**
 
-Requires:
-
-- `worker.enable = true`
-- Postgres storage configured
-- RabbitMQ configured
-
-```bash
-curl -X POST http://127.0.0.1:8080/v1/bulk \
-  -H 'content-type: application/json' \
-  -d '{"input":["a@example.com","b@example.com"]}'
+```json
+{
+  "input": "someone@gmail.com",
+  "is_reachable": "safe",
+  "misc": {
+    "is_disposable": false,
+    "is_role_account": false,
+    "is_b2c": true,
+    "gravatar_url": null
+  },
+  "mx": { "accepts_mail": true, "records": [] },
+  "smtp": {},
+  "syntax": {
+    "is_valid_syntax": true,
+    "username": "someone",
+    "domain": "gmail.com"
+  }
+}
 ```
 
-### `GET /v1/bulk/:id`
+---
 
-Gets current job progress.
+## Installation Options
 
-### `GET /v1/bulk/:id/results?format=json|csv&limit=&offset=`
+### Build & run compiled output
 
-Fetches final results in JSON or CSV.
+```bash
+npm run build
+npm start
+```
 
-## Vercel Deployment
+### Install CLI globally
 
-This repository includes:
+```bash
+npm install -g .
+email-validator --help
+email-validator check someone@gmail.com
+email-validator serve --config ./backend_config.toml
+```
 
-- `vercel.json`
-- `api/index.ts`
+### Docker
 
-for deploying the HTTP API as a serverless function.
+```bash
+docker build -t email-validator .
+docker run -p 8080:8080 email-validator
+```
 
-### One-Time Setup
+---
 
-1. Push this repo to GitHub/GitLab/Bitbucket.
-2. Import the repository in Vercel.
+## Deployment
+
+| Platform | Guide |
+|---|---|
+| **Fly.io** | [`FLY_DEPLOYMENT.md`](./FLY_DEPLOYMENT.md) |
+| **Vercel** | See below |
+| **Docker / VPS** | Use the included `Dockerfile` |
+
+### Deploy to Vercel (serverless, single checks)
+
+1. Push this repo to GitHub.
+2. Import into [Vercel](https://vercel.com).
 3. Set Node.js runtime to 18+.
-4. Add required environment variables in Vercel Project Settings.
+4. Add environment variables in Vercel Project Settings.
 
-### Recommended Vercel Env Vars
+> **Note:** Bulk + worker mode requires long-running infrastructure (VM/container + RabbitMQ + Postgres). Vercel works best for single-check API usage only.
 
-- `EMAIL_CHECKER__HEADER_SECRET`
-- `EMAIL_CHECKER__HTTP_HOST` (optional)
-- `EMAIL_CHECKER__HTTP_PORT` (optional)
-- any SMTP/proxy/env overrides you use
+---
 
-### Important Vercel Notes
+## Configuration
 
-- Vercel deployment is best for **single-check API usage** (`/v1/check_email`).
-- Bulk + queue workflows (`/v1/bulk`) still need long-running worker + RabbitMQ + Postgres setup outside serverless constraints.
-- Use separate infrastructure (VM/container) for production worker mode.
+Configuration is loaded from `./backend_config.toml` (or a path you specify). All values can be overridden with environment variables using the `EMAIL_CHECKER__` prefix.
 
-## Project Documentation
+```toml
+# backend_config.toml
+backend_name = "my-validator"
+http_host    = "0.0.0.0"
+http_port    = 8080
+hello_name   = "example.com"
+from_email   = "noreply@example.com"
 
-Detailed architecture and operational guide:
+[throttle]
+max_requests_per_second = 20
+max_requests_per_minute = 200
 
-- `PROJECT_WORKING_AND_FEATURES.md`
-- `API_DOCUMENTATION.md`
-- `FLY_DEPLOYMENT.md`
+[worker]
+enable = false
+
+[worker.rabbitmq]
+url         = "amqp://guest:guest@localhost:5672"
+concurrency = 5
+
+# [storage.postgres]
+# db_url = "postgresql://localhost/email_checker_db"
+```
+
+### Environment variable overrides
+
+| Variable | Description |
+|---|---|
+| `EMAIL_CHECKER__HTTP_HOST` | Bind address (default `127.0.0.1`) |
+| `EMAIL_CHECKER__HTTP_PORT` | Port (default `8080`) |
+| `EMAIL_CHECKER__HEADER_SECRET` | API secret for `x-api-secret` header |
+| `EMAIL_CHECKER__ALLOW_BROWSER_WITHOUT_SECRET` | Skip secret check for same-origin browser requests |
+| `EMAIL_CHECKER__WORKER__ENABLE` | Enable queue worker mode |
+| `EMAIL_CHECKER__WORKER__RABBITMQ__URL` | RabbitMQ connection string |
+| `EMAIL_CHECKER__STORAGE__POSTGRES__DB_URL` | Postgres connection string |
+| `PORT` | Alias for `http_port` (Heroku / Fly / Render compatible) |
+
+---
+
+## CLI Reference
+
+```bash
+# One-off check
+email-validator check someone@gmail.com
+
+# Start HTTP server
+email-validator serve --config ./backend_config.toml
+
+# Start worker only (requires RabbitMQ + Postgres)
+email-validator worker --config ./backend_config.toml
+
+# API + inline worker (single process)
+email-validator serve --config ./backend_config.toml   # with worker.enable = true
+
+# Show all options
+email-validator --help
+```
+
+---
+
+## API Reference
+
+Full reference: [`API_DOCUMENTATION.md`](./API_DOCUMENTATION.md)
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/health` | Service health check |
+| `GET` | `/version` | Package version |
+| `POST` | `/v1/check_email` | Validate a single email |
+| `POST` | `/v1/bulk` | Submit a bulk validation job |
+| `GET` | `/v1/bulk/:id` | Poll bulk job progress |
+| `GET` | `/v1/bulk/:id/results` | Fetch results (JSON or CSV) |
+
+---
+
+## Running Tests
+
+```bash
+npm test
+```
+
+Tests cover syntax validation, SMTP response parsing, reachability scoring, config loading, and throttling behavior.
+
+---
+
+## Contributing
+
+Contributions are welcome! Please read [`CONTRIBUTING.md`](./CONTRIBUTING.md) to get started.
+
+- **Bug reports** → [open an issue](https://github.com/sagnik11/check-if-email-exists-master/issues)
+- **Feature requests** → [start a discussion](https://github.com/sagnik11/check-if-email-exists-master/issues)
+- **Pull requests** → fork, branch, and open a PR against `master`
+
+---
+
+## License
+
+This project is dual-licensed:
+
+- **Open source** — [AGPL-3.0](./LICENSE) for open source projects
+- **Commercial** — contact us for a commercial license if you want to use this in proprietary software
+
+See [`LICENSE.md`](./LICENSE.md) for full details.
+
+---
+
+## Acknowledgements
+
+Sponsored by **[Autter](https://autter.dev)**.

@@ -1,300 +1,266 @@
-# Project Working And Features
+# Architecture & Feature Reference
 
-This document explains the architecture, runtime flow, and deployment model of `Email Validation Service`.
+A deep-dive into how Email Validator works under the hood — the verification pipeline, runtime modes, storage model, and production checklist.
 
-## 1) Overview
+---
 
-`Email Validation Service` is a TypeScript email verification backend and CLI.
+## Overview
 
-It verifies an email address without sending mail by combining:
+Email Validator is a TypeScript backend that verifies email addresses without sending mail. It combines five distinct checks into a single structured response and exposes them via HTTP API, CLI, and an optional queue worker for async bulk processing.
 
-- syntax validation
-- MX lookup
-- SMTP handshake checks
-- metadata enrichment (disposable, role account, B2C traits)
-- optional Gravatar and HaveIBeenPwned checks
+---
 
-The project supports both synchronous API checks and asynchronous queue-backed bulk processing.
+## Repository Layout
 
-## 2) Repository Layout
+```
+src/
+  checker/         — core verification pipeline (syntax, MX, SMTP, misc, scoring)
+  http/            — Express route handlers and middleware
+  worker/          — RabbitMQ queue setup, consumer loop, task execution
+  storage/         — storage abstraction + Postgres implementation
+  config.ts        — TOML + env config loader
+  runtime.ts       — runtime object construction
+  server.ts        — HTTP server entrypoint
 
-- `src/` - application code
-  - `src/checker/` - syntax, MX, SMTP, scoring, misc checks
-  - `src/http/` - Express API handlers
-  - `src/worker/` - RabbitMQ queue setup and worker loop
-  - `src/storage/` - storage abstraction + Postgres implementation
-- `bin/email-validator.ts` - CLI entrypoint
-- `public/` - static web UI served at `/`
-- `test/` - test suite
-- `api/index.ts` - Vercel serverless entrypoint
-- `README.md` - quick start and operational summary
+bin/
+  email-validator.ts   — installable CLI entrypoint
 
-## 3) Core Features
+api/
+  index.ts         — Vercel serverless entrypoint
 
-### 3.1 Single Email Verification
+public/
+  index.html       — browser-based quick-check UI
 
-Endpoint:
+test/              — test suite
+```
 
-- `POST /v1/check_email`
+---
 
-Returns structured output with:
+## Core Features
 
-- `input`
-- `is_reachable` (`safe`, `risky`, `invalid`, `unknown`)
-- `syntax`, `mx`, `smtp`, `misc`
-- `debug` details when present
+### Single Email Verification
 
-### 3.2 Bulk Verification
+`POST /v1/check_email`
 
-Endpoints:
+Returns a structured object with:
 
-- `POST /v1/bulk`
-- `GET /v1/bulk/:id`
-- `GET /v1/bulk/:id/results?format=json|csv&limit=&offset=`
+| Field | Description |
+|---|---|
+| `input` | The address that was checked |
+| `is_reachable` | Verdict: `safe`, `risky`, `invalid`, or `unknown` |
+| `syntax` | Format validity, parsed username/domain, typo suggestions |
+| `mx` | Whether the domain has working MX records |
+| `smtp` | SMTP handshake result and error classification |
+| `misc` | Disposable, role account, B2C, Gravatar, HaveIBeenPwned |
+| `debug` | Backend name, timing |
 
-Bulk mode requires worker + queue + Postgres storage.
+### Bulk Verification
 
-### 3.3 Queue Worker Architecture
+`POST /v1/bulk` → `GET /v1/bulk/:id` → `GET /v1/bulk/:id/results`
 
-- RabbitMQ queue name: `check_email`
-- Worker consumes and processes queued tasks
-- Single check can use RPC-style worker roundtrip when worker mode is enabled
-- Bulk jobs enqueue at lower priority than single-shot checks
+Requires: worker mode + RabbitMQ + Postgres. Submit a list of addresses, poll for progress, retrieve paginated JSON or a full CSV export.
 
-### 3.4 Postgres Persistence
+### Queue Worker
 
-With Postgres storage enabled, the service persists:
+- Queue: `check_email` (RabbitMQ)
+- Single-shot checks get higher priority than bulk jobs
+- Worker applies throttling before processing each message
+- Transient SMTP failures (`unknown`) are requeued once
+- Results are persisted to Postgres and optionally sent to a webhook
 
-- bulk jobs
-- task results
-- progress and retrieval metadata for bulk endpoints
+### Postgres Persistence
 
-### 3.5 Throttling
+Tables auto-created on startup:
 
-In-memory throttling can enforce limits by:
+- `v1_bulk_job` — job metadata, status, progress
+- `v1_task_result` — individual address results linked to a job
 
-- second
-- minute
-- hour
-- day
+### Rate Limiting
 
-It is applied in API request processing and worker task handling.
+In-memory throttle with configurable limits per second, minute, hour, and day. Applied at both the HTTP layer and inside the worker loop.
 
-### 3.6 CLI
+### CLI
 
-Global binary:
+```bash
+email-validator check someone@gmail.com
+email-validator serve --config ./backend_config.toml
+email-validator worker --config ./backend_config.toml
+```
 
-- `email-validator`
+### Web UI
 
-Commands:
+Served at `/`. Calls `POST /v1/check_email` and displays results in the browser — useful for quick manual checks.
 
-- `serve`
-- `worker`
-- `check`
+---
 
-### 3.7 Web UI
+## Verification Pipeline (single email)
 
-- Available at `/`
-- Calls `POST /v1/check_email`
-- Intended for quick manual validation
+Orchestrated in `src/checker/checkEmail.ts`. Stages run in order:
 
-## 4) Verification Pipeline (Single Email)
+### 1. Syntax
 
-Main orchestration:
+- RFC-compliant format validation
+- Username and domain extraction
+- Known-provider normalization (strips plus-aliases, dots, etc.)
+- Typo suggestions for common domains (`gmail.co` → `gmail.com`)
 
-- `src/checker/checkEmail.ts`
+### 2. MX
 
-Execution order:
+- Resolves MX DNS records for the domain
+- Ranks records by preference
+- Marks the check `invalid` if no mail-accepting records are found
 
-1. **Syntax stage**
-   - validates format
-   - extracts username/domain
-   - normalizes known-provider formats
-   - suggests likely provider typo fixes
-2. **MX stage**
-   - resolves MX records
-   - ranks by preference
-   - marks invalid path when DNS mail routing is missing
-3. **Misc stage**
-   - disposable domain detection
-   - role account detection
-   - B2C provider traits
-   - optional Gravatar lookup
-   - optional HaveIBeenPwned lookup
-4. **SMTP stage**
-   - connects directly or via SOCKS5
-   - sends `EHLO`, `MAIL FROM`, `RCPT TO`
-   - optional catch-all detection
-   - parses SMTP errors into typed outcomes
-   - applies retry behavior
-5. **Reachability scoring**
-   - `invalid` for clear failure states
-   - `risky` for potentially deliverable but risky states
-   - `safe` for deliverable non-risk outcomes
-   - `unknown` for inconclusive network/provider scenarios
+### 3. Misc
 
-## 5) HTTP API Behavior
+- Disposable domain detection (via `disposable-email-domains` + `mailchecker`)
+- Role account detection (`info@`, `admin@`, `noreply@`, etc.)
+- B2C provider classification (Gmail, Outlook, Yahoo, etc.)
+- Optional Gravatar URL lookup
+- Optional HaveIBeenPwned breach check
 
-App setup:
+### 4. SMTP
 
-- `src/http/app.ts`
+- Opens a TCP connection to the best MX host (or via SOCKS5 proxy)
+- Sends `EHLO`, `MAIL FROM`, `RCPT TO`
+- Detects catch-all domains
+- Parses SMTP error responses into typed outcomes:
+  - full inbox
+  - disabled/suspended account
+  - blacklisted sender
+  - reverse DNS rejection
+- Applies retry behavior for transient failures
 
-### 5.1 Header Secret
+### 5. Reachability Scoring
 
-If `header_secret` is configured, protected endpoints require:
+| Verdict | Conditions |
+|---|---|
+| `invalid` | Syntax failure, no MX, hard SMTP rejection |
+| `risky` | Disposable, role account, catch-all, soft bounce |
+| `safe` | Deliverable, non-risky |
+| `unknown` | Network timeout, greylisting, ambiguous provider response |
 
-- `x-api-secret: <secret>`
+---
 
-### 5.2 `POST /v1/check_email`
+## HTTP API Behavior
 
-- With `worker.enable = false`: executes in-process synchronously
-- With `worker.enable = true`: dispatches via RabbitMQ and waits for worker reply
-- applies throttle checks before processing
+App setup: `src/http/app.ts`
 
-### 5.3 `POST /v1/bulk`
+### Authentication
 
-Requires:
+If `header_secret` is configured, all protected routes require:
 
-- `worker.enable = true`
-- Postgres storage configured
-- RabbitMQ available
+```http
+x-api-secret: <secret>
+```
 
-Flow:
+### `POST /v1/check_email` — execution modes
 
-1. create bulk job record
-2. enqueue each email as a task
-3. return `job_id`
+| `worker.enable` | Behavior |
+|---|---|
+| `false` (default) | Check runs in-process synchronously |
+| `true` | Request is dispatched to RabbitMQ; API waits for worker reply (RPC pattern) |
 
-### 5.4 Bulk Results
+Throttle is checked before either path.
 
-`GET /v1/bulk/:id/results` supports:
+### `POST /v1/bulk`
 
-- JSON paging
-- CSV output (`format=csv`)
-- `limit` and `offset`
+1. Creates a `v1_bulk_job` record in Postgres
+2. Enqueues each address as a low-priority task
+3. Returns `job_id` immediately
 
-## 6) Worker Internals
+Results become available as the worker processes tasks.
 
-Key files:
+---
 
-- `src/worker/run.ts`
-- `src/worker/service.ts`
-- `src/worker/singleShot.ts`
-- `src/worker/queue.ts`
+## Worker Internals
 
-Worker loop behavior:
+Key files: `src/worker/run.ts`, `src/worker/service.ts`, `src/worker/queue.ts`
 
-1. consume queue message
-2. parse and validate task payload
-3. apply throttling policy
-4. process check task
-5. retry/requeue specific transient outcomes
-6. ack/nack appropriately
-7. persist result
-8. optionally send RPC single-shot reply
+Consumer loop per message:
 
-## 7) Storage Model
+1. Parse and validate task payload
+2. Apply throttle — nack and discard if over limit
+3. Execute the check pipeline
+4. On `unknown` SMTP result → requeue once
+5. On other transient failure → requeue once
+6. Persist result to Postgres
+7. If message has `replyTo` / `correlationId` → send RPC reply (single-shot mode)
+8. Ack message
 
-Postgres implementation:
+---
 
-- `src/storage/postgres.ts`
+## Configuration
 
-Storage adapter selection:
+Loaded by `src/config.ts` in merge order:
 
-- `src/storage/index.ts`
+1. Built-in defaults
+2. `backend_config.toml` (or path passed via `--config`)
+3. Environment variables (`EMAIL_CHECKER__SECTION__KEY`)
+4. `PORT` env var → `http_port` fallback
 
-When enabled, required tables are auto-created and used for bulk job tracking and result retrieval.
+Full reference: [`README.md` — Configuration](./README.md#configuration)
 
-## 8) Configuration Model
+---
 
-Config loader:
+## Runtime Modes
 
-- `src/config.ts`
-
-Config sources (merge order):
-
-1. defaults
-2. `backend_config.toml` (or explicit `configPath`)
-3. env overrides (`EMAIL_CHECKER__...`)
-4. `PORT` fallback for `http_port`
-
-Examples:
-
-- `EMAIL_CHECKER__HTTP_HOST=0.0.0.0`
-- `EMAIL_CHECKER__HTTP_PORT=8080`
-- `EMAIL_CHECKER__HEADER_SECRET=my-secret`
-- `EMAIL_CHECKER__WORKER__ENABLE=true`
-- `EMAIL_CHECKER__WORKER__RABBITMQ__URL=amqp://guest:guest@localhost:5672`
-- `EMAIL_CHECKER__STORAGE__POSTGRES__DB_URL=postgresql://localhost/email_checker_db`
-
-## 9) Runtime Modes
-
-### 9.1 API Only (No Worker Inline)
+### API only (no worker)
 
 ```bash
 email-validator serve --config ./backend_config.toml --no-inline-worker
 ```
 
-### 9.2 Worker Only
+### Worker only
 
 ```bash
 email-validator worker --config ./backend_config.toml
 ```
 
-### 9.3 API + Inline Worker
+### API + inline worker (single process)
 
 ```bash
 email-validator serve --config ./backend_config.toml
+# with worker.enable = true in config
 ```
 
-Use when `worker.enable = true` and you want a simpler single-process runtime.
+Use the inline mode for simple self-hosted setups. For high-throughput production use, run API and worker as separate scaled processes.
 
-## 10) Vercel Deployment Model
+---
 
-Vercel integration files:
+## Vercel Deployment
 
-- `api/index.ts`
-- `vercel.json`
+- `api/index.ts` wraps the Express app as a Vercel serverless function
+- `vercel.json` configures routing
 
-Behavior:
+Best for: single-check API (`/v1/check_email`). Bulk + worker mode requires long-running infrastructure that doesn't fit the serverless model.
 
-- Vercel serves the Express app through a serverless function.
-- Best suited for synchronous API checks and low operational overhead.
-- Bulk queue workflow is not ideal for pure serverless runtime.
+---
 
-Production recommendation:
-
-- Use Vercel for API entry when needed.
-- Run worker + RabbitMQ + Postgres on dedicated infrastructure for reliable bulk processing.
-
-## 11) Testing
-
-Current tests include:
-
-- syntax and normalization
-- SMTP parser categorization
-- reachability baseline checks
-- config env override behavior
-- throttling behavior
-
-Run tests:
+## Testing
 
 ```bash
 npm test
 ```
 
-## 12) Operational Checklist
+Current test coverage:
 
-For production-grade setup:
+| Area | Tests |
+|---|---|
+| Syntax validation & normalization | ✅ |
+| SMTP response parser | ✅ |
+| Reachability scoring | ✅ |
+| Config env override loading | ✅ |
+| Throttling behavior | ✅ |
 
-1. configure secrets and SMTP identity
-2. configure Postgres and RabbitMQ
-3. enable worker mode for async/bulk workloads
-4. run worker replicas
-5. run API replicas
-6. enable `header_secret` for trusted access paths
-7. set throttling thresholds for expected traffic
+---
 
-## 13) Sponsorship
+## Production Checklist
 
-This project is sponsored by **Autter**.
+- [ ] Set a strong `header_secret`
+- [ ] Configure `hello_name` and `from_email` to match your domain
+- [ ] Enable Postgres and RabbitMQ for bulk/worker mode
+- [ ] Run at least one worker replica
+- [ ] Set throttle thresholds appropriate for your traffic
+- [ ] Configure CORS origins if serving a browser frontend
+- [ ] Set up health check monitoring at `GET /health`
+- [ ] Use a SOCKS5 proxy if your host's outbound port 25 is blocked

@@ -1,99 +1,150 @@
-# Fly.io Deployment Guide
+# Deploying to Fly.io
 
-This guide deploys the Email Validation Service API to Fly.io.
+This guide walks through deploying Email Validator to [Fly.io](https://fly.io) as a persistent, always-on API server.
 
-The app has already been initialized on Fly as:
+Fly.io is a great fit for this project because it:
 
-- App name: `email-checker-autter`
-- Public URL: `https://email-checker-autter.fly.dev`
+- Runs a real VM (not serverless), so SMTP connections work without restrictions
+- Supports persistent machines with a warm minimum count
+- Has a generous free tier for small workloads
+
+---
 
 ## Prerequisites
 
-- Fly CLI installed and authenticated (`flyctl auth whoami`)
-- A Fly organization with billing enabled
-- This repository checked out locally
+- [Fly CLI](https://fly.io/docs/hands-on/install-flyctl/) installed and authenticated (`flyctl auth whoami`)
+- A Fly account with billing enabled
+- This repository cloned locally
 
-## 1) Review Fly config
+---
 
-`fly.toml` is committed at the repo root.
+## Step 1 — Initialize your Fly app
 
-Current key settings:
+If you're deploying for the first time, create a new Fly app:
 
-- `internal_port = 8080`
-- `force_https = true`
-- `min_machines_running = 1` (keeps one machine warm)
-- single machine target: `count = 1`
-- VM size target: `shared-cpu-1x` with `512 MB` RAM
+```bash
+flyctl launch --no-deploy
+```
 
-No Fly Postgres is required for this API-only deployment.
+This creates a `fly.toml` in the repo root and registers the app with Fly. Make note of your app name — you'll use it throughout this guide.
 
-## 2) Set required secrets
+Alternatively, a pre-configured `fly.toml` is already committed with these key settings:
 
-Set a header secret to protect API routes:
+| Setting | Value |
+|---|---|
+| `internal_port` | `8080` |
+| `force_https` | `true` |
+| `min_machines_running` | `1` (keeps one machine warm) |
+| VM size | `shared-cpu-1x`, 512 MB RAM |
+
+Edit `fly.toml` if you need a different region or machine size.
+
+---
+
+## Step 2 — Set secrets
+
+Set the required environment variables as Fly secrets. Replace `<your-app-name>` and the secret value:
 
 ```bash
 flyctl secrets set \
-  EMAIL_CHECKER__HEADER_SECRET="replace-with-strong-secret" \
+  EMAIL_CHECKER__HEADER_SECRET="replace-with-a-strong-random-secret" \
   EMAIL_CHECKER__HTTP_HOST="0.0.0.0" \
   EMAIL_CHECKER__HTTP_PORT="8080" \
   EMAIL_CHECKER__ALLOW_BROWSER_WITHOUT_SECRET="false" \
-  --app email-checker-autter
+  --app <your-app-name>
 ```
 
-Optional SMTP/checker tuning secrets can be added the same way.
-
-## 3) Deploy
+Optional SMTP / proxy tuning:
 
 ```bash
-flyctl deploy --app email-checker-autter --remote-only
+flyctl secrets set \
+  EMAIL_CHECKER__HELLO_NAME="mail.yourdomain.com" \
+  EMAIL_CHECKER__FROM_EMAIL="noreply@yourdomain.com" \
+  --app <your-app-name>
 ```
 
-## 3.1) Enforce single 512MB machine
+---
+
+## Step 3 — Deploy
 
 ```bash
-flyctl scale count 1 --app email-checker-autter --yes
-flyctl scale memory 512 --app email-checker-autter
+flyctl deploy --app <your-app-name> --remote-only
 ```
 
-## 4) Verify health
+To lock the machine count and memory:
 
 ```bash
-curl -sS https://email-checker-autter.fly.dev/health
-curl -sS https://email-checker-autter.fly.dev/version
+flyctl scale count 1 --app <your-app-name> --yes
+flyctl scale memory 512 --app <your-app-name>
 ```
 
-If `EMAIL_CHECKER__HEADER_SECRET` is set, test protected endpoint:
+---
+
+## Step 4 — Verify
 
 ```bash
-curl -X POST "https://email-checker-autter.fly.dev/v1/check_email" \
-  -H "content-type: application/json" \
-  -H "x-api-secret: replace-with-strong-secret" \
+# Health check
+curl -sS https://<your-app-name>.fly.dev/health
+
+# Version
+curl -sS https://<your-app-name>.fly.dev/version
+
+# Test a validation (requires your secret)
+curl -X POST "https://<your-app-name>.fly.dev/v1/check_email" \
+  -H "Content-Type: application/json" \
+  -H "x-api-secret: replace-with-a-strong-random-secret" \
   -d '{"to_email":"someone@gmail.com"}'
 ```
 
-## 5) Integrate with hedwig-mail
+---
 
-In `web` and `worker` env vars of `mail-sending-app`, set:
+## Step 5 — Connect your app
+
+Set these environment variables in any service that calls the Email Validator API:
 
 ```env
-EMAIL_CHECKER_BASE_URL=https://email-checker-autter.fly.dev
-EMAIL_CHECKER_API_SECRET=replace-with-strong-secret
+EMAIL_CHECKER_BASE_URL=https://<your-app-name>.fly.dev
+EMAIL_CHECKER_API_SECRET=replace-with-a-strong-random-secret
 EMAIL_CHECKER_TIMEOUT_MS=30000
 ```
 
-Optional:
+Optional extras:
 
 ```env
-HIBP_API_KEY=...
+HIBP_API_KEY=your-haveibeenpwned-key
 EMAIL_VERIFY_SMTP_PORT=587
 ```
 
-## 6) Optional CI/CD
+---
 
-This repo includes `.github/workflows/fly-deploy.yml`.
+## CI/CD (optional)
 
-To enable automatic deploy on push:
+This repo includes `.github/workflows/fly-deploy.yml` for automatic deploys on push to `master`.
 
-1. Add `FLY_API_TOKEN` in GitHub repo secrets.
-2. Push to `master` (or `main`).
+To enable it:
 
+1. Go to your GitHub repo → **Settings** → **Secrets and variables** → **Actions**
+2. Add a secret named `FLY_API_TOKEN` (get it from `flyctl auth token`)
+3. Push to `master` — the workflow deploys automatically
+
+---
+
+## Bulk + Worker Mode on Fly
+
+For bulk processing you also need RabbitMQ and Postgres. Options:
+
+- **Fly Postgres** — `flyctl postgres create`
+- **Upstash / CloudAMQP** — managed RabbitMQ with a free tier
+- **Any external DB/queue** — pass connection strings as secrets
+
+Once provisioned, add:
+
+```bash
+flyctl secrets set \
+  EMAIL_CHECKER__WORKER__ENABLE="true" \
+  EMAIL_CHECKER__WORKER__RABBITMQ__URL="amqp://..." \
+  EMAIL_CHECKER__STORAGE__POSTGRES__DB_URL="postgresql://..." \
+  --app <your-app-name>
+```
+
+Then run a separate worker machine or process group.
