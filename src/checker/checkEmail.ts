@@ -83,13 +83,25 @@ async function checkEmail(rawInput = {}) {
   const startTimeMs = Date.now();
   const startTime = new Date(startTimeMs);
 
+  console.log(JSON.stringify({
+    ts: startTime.toISOString(),
+    level: "info",
+    source: "checkEmail",
+    msg: "check started",
+    to_email: String(rawInput.to_email || "").trim(),
+    smtp_port: Number(rawInput.smtp_port || process.env.EMAIL_CHECKER_SMTP_PORT || 25),
+    node_version: process.version,
+    platform: process.platform,
+    env_smtp_port: process.env.EMAIL_CHECKER_SMTP_PORT || "(not set, defaulting to 25)",
+  }));
+
   const input = {
     to_email: String(rawInput.to_email || "").trim(),
     from_email:
       rawInput.from_email || process.env.EMAIL_CHECKER_FROM_EMAIL || "noreply@example.com",
     hello_name:
       rawInput.hello_name || process.env.EMAIL_CHECKER_HELLO_NAME || "example.com",
-    smtp_port: Number(rawInput.smtp_port || 25),
+    smtp_port: Number(rawInput.smtp_port || process.env.EMAIL_CHECKER_SMTP_PORT || 25),
     retries: Number(rawInput.retries || 1),
     proxy: rawInput.proxy || null,
     check_gravatar: Boolean(rawInput.check_gravatar),

@@ -9,19 +9,23 @@ function getMxErrorType(err) {
 }
 
 async function checkMx(domain) {
+  console.log(JSON.stringify({ ts: new Date().toISOString(), level: "info", source: "mx", msg: "resolving MX", domain }));
   try {
     const mxRecords = await dns.resolveMx(domain);
     const sorted = mxRecords
       .map((x) => ({ exchange: normalizeMxHost(x.exchange), priority: x.priority }))
       .sort((a, b) => a.priority - b.priority);
 
-    return {
+    const result = {
       accepts_mail: sorted.length > 0,
       records: sorted.map((x) => x.exchange),
       preferred: sorted[0] || null,
       lookupError: null,
     };
+    console.log(JSON.stringify({ ts: new Date().toISOString(), level: "info", source: "mx", msg: "MX resolved", domain, records: result.records }));
+    return result;
   } catch (err) {
+    console.error(JSON.stringify({ ts: new Date().toISOString(), level: "error", source: "mx", msg: "MX lookup failed", domain, code: err?.code, error: err?.message }));
     if (["ENODATA", "ENOTFOUND", "NXDOMAIN", "SERVFAIL"].includes(err?.code)) {
       return {
         accepts_mail: false,
