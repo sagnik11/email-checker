@@ -87,7 +87,7 @@
           </div>
           <div>
             <label>SMTP Port</label>
-            <input id="smtp_port" value="25" />
+            <input id="smtp_port" value="25" title="Server default loaded on page start" />
           </div>
         </div>
         <div style="margin-top: 16px">
@@ -103,6 +103,17 @@
     <script>
       const btn = document.getElementById("runBtn");
       const output = document.getElementById("output");
+      const smtpPortInput = document.getElementById("smtp_port");
+
+      // Load server-configured SMTP port so env overrides are reflected in the UI
+      fetch("/version")
+        .then((r) => r.json())
+        .then((v) => {
+          if (v && v.smtp_port) {
+            smtpPortInput.value = v.smtp_port;
+          }
+        })
+        .catch(() => {});
 
       btn.addEventListener("click", async () => {
         const payload = {

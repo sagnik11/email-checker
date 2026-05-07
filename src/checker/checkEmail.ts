@@ -83,16 +83,20 @@ async function checkEmail(rawInput = {}) {
   const startTimeMs = Date.now();
   const startTime = new Date(startTimeMs);
 
+  // Env var always wins so cloud providers that block port 25 can override via EMAIL_CHECKER_SMTP_PORT=587
+  const effectiveSmtpPort = Number(process.env.EMAIL_CHECKER_SMTP_PORT || rawInput.smtp_port || 25);
+
   console.log(JSON.stringify({
     ts: startTime.toISOString(),
     level: "info",
     source: "checkEmail",
     msg: "check started",
     to_email: String(rawInput.to_email || "").trim(),
-    smtp_port: Number(rawInput.smtp_port || process.env.EMAIL_CHECKER_SMTP_PORT || 25),
+    smtp_port: effectiveSmtpPort,
     node_version: process.version,
     platform: process.platform,
     env_smtp_port: process.env.EMAIL_CHECKER_SMTP_PORT || "(not set, defaulting to 25)",
+    client_requested_port: rawInput.smtp_port ?? "(not sent)",
   }));
 
   const input = {
@@ -101,7 +105,7 @@ async function checkEmail(rawInput = {}) {
       rawInput.from_email || process.env.EMAIL_CHECKER_FROM_EMAIL || "noreply@example.com",
     hello_name:
       rawInput.hello_name || process.env.EMAIL_CHECKER_HELLO_NAME || "example.com",
-    smtp_port: Number(rawInput.smtp_port || process.env.EMAIL_CHECKER_SMTP_PORT || 25),
+    smtp_port: effectiveSmtpPort,
     retries: Number(rawInput.retries || 1),
     proxy: rawInput.proxy || null,
     check_gravatar: Boolean(rawInput.check_gravatar),

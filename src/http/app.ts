@@ -290,7 +290,10 @@ function createApp(runtime) {
   });
 
   app.get("/version", (_req, res) => {
-    res.json({ version: appVersion });
+    res.json({
+      version: appVersion,
+      smtp_port: Number(process.env.EMAIL_CHECKER_SMTP_PORT || 25),
+    });
   });
 
   app.post("/v1/check_email", async (req, res) => {
