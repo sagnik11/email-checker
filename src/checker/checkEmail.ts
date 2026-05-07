@@ -7,20 +7,94 @@ const { buildDefaultSmtpDetails, checkSmtp } = require("./smtp");
 const { providerFromMx } = require("./provider");
 const { durationFromMs } = require("./util");
 
-function defaultMisc() {
+function flattenSyntax(syntax) {
   return {
-    is_disposable: false,
-    is_role_account: false,
-    is_b2c: false,
-    gravatar_url: null,
-    haveibeenpwned: null,
+    email_address: syntax.address,
+    email_username: syntax.username,
+    email_domain: syntax.domain,
+    normalized_email: syntax.normalized_email,
+    is_valid_syntax: syntax.is_valid_syntax,
+    syntax_suggestion: syntax.suggestion,
   };
 }
 
-function defaultMx() {
+function flattenMisc(misc) {
+  if (!misc) {
+    return {
+      is_disposable_email: false,
+      is_role_account: false,
+      is_b2c_provider: false,
+      gravatar_url: null,
+      has_been_pwned: null,
+    };
+  }
   return {
-    accepts_mail: false,
-    records: [],
+    is_disposable_email: misc.is_disposable,
+    is_role_account: misc.is_role_account,
+    is_b2c_provider: misc.is_b2c,
+    gravatar_url: misc.gravatar_url,
+    has_been_pwned: misc.haveibeenpwned,
+  };
+}
+
+function flattenMx({ accepts_mail, records, preferred, lookupError } = {}) {
+  return {
+    mx_accepts_mail: Boolean(accepts_mail),
+    mx_records: Array.isArray(records) ? records : [],
+    mx_preferred_host: preferred?.exchange || null,
+    mx_preferred_priority:
+      typeof preferred?.priority === "number" ? preferred.priority : null,
+    mx_lookup_error_type: lookupError?.type || null,
+    mx_lookup_error_message: lookupError?.message || null,
+  };
+}
+
+function flattenSmtp(smtpValue, smtpError) {
+  if (smtpError) {
+    return {
+      smtp_can_connect: false,
+      smtp_has_full_inbox: false,
+      smtp_is_catch_all: false,
+      smtp_is_deliverable: false,
+      smtp_is_disabled_account: false,
+      smtp_error_type: smtpError.error?.type || null,
+      smtp_error_message: smtpError.error?.message || null,
+      smtp_error_description: smtpError.description || null,
+    };
+  }
+
+  const value = smtpValue || buildDefaultSmtpDetails();
+  return {
+    smtp_can_connect: Boolean(value.can_connect_smtp),
+    smtp_has_full_inbox: Boolean(value.has_full_inbox),
+    smtp_is_catch_all: Boolean(value.is_catch_all),
+    smtp_is_deliverable: Boolean(value.is_deliverable),
+    smtp_is_disabled_account: Boolean(value.is_disabled),
+    smtp_error_type: null,
+    smtp_error_message: null,
+    smtp_error_description: null,
+  };
+}
+
+function flattenDebug({ backendName, startTime, endTime, startTimeMs, verifMethod }) {
+  const durationMs = endTime.getTime() - startTimeMs;
+  const duration = durationFromMs(durationMs);
+
+  return {
+    backend_name: backendName,
+    check_started_at: startTime.toISOString(),
+    check_completed_at: endTime.toISOString(),
+    check_duration_ms: durationMs,
+    check_duration_seconds: duration.secs,
+    check_duration_nanos: duration.nanos,
+    verification_method_type: verifMethod.type || "skipped",
+    verification_method_host: verifMethod.host || null,
+    verification_method_smtp_port:
+      typeof verifMethod.smtp_port === "number" ? verifMethod.smtp_port : null,
+    verification_method_provider: verifMethod.provider || null,
+    verification_method_chosen: verifMethod.method || null,
+    verification_method_requested: verifMethod.requested_method || null,
+    verification_method_fallback: verifMethod.fallback_to || null,
   };
 }
 
@@ -79,6 +153,27 @@ function chosenMethodForProvider(provider, input) {
   return "smtp";
 }
 
+function buildResult({
+  input,
+  isReachable,
+  syntax,
+  misc,
+  mx,
+  smtpValue,
+  smtpError,
+  debug,
+}) {
+  return {
+    input,
+    is_reachable: isReachable,
+    ...flattenSyntax(syntax),
+    ...flattenMisc(misc),
+    ...flattenMx(mx),
+    ...flattenSmtp(smtpValue, smtpError),
+    ...flattenDebug(debug),
+  };
+}
+
 async function checkEmail(rawInput = {}) {
   const startTimeMs = Date.now();
   const startTime = new Date(startTimeMs);
@@ -123,28 +218,26 @@ async function checkEmail(rawInput = {}) {
     hotmailb2c_verif_method: rawInput.hotmailb2c_verif_method || null,
   };
 
+  const skippedVerifMethod = { type: "skipped" };
+
   const syntax = checkSyntax(input.to_email);
   if (!syntax.is_valid_syntax) {
-    const endTime = new Date();
-    return {
+    return buildResult({
       input: input.to_email,
-      is_reachable: "invalid",
-      misc: defaultMisc(),
-      mx: defaultMx(),
-      smtp: buildDefaultSmtpDetails(),
+      isReachable: "invalid",
       syntax,
+      misc: null,
+      mx: { accepts_mail: false, records: [], preferred: null, lookupError: null },
+      smtpValue: buildDefaultSmtpDetails(),
+      smtpError: null,
       debug: {
-        backend_name: input.backend_name,
-        start_time: startTime.toISOString(),
-        end_time: endTime.toISOString(),
-        duration: durationFromMs(endTime.getTime() - startTimeMs),
-        smtp: {
-          verif_method: {
-            type: "skipped",
-          },
-        },
+        backendName: input.backend_name,
+        startTime,
+        endTime: new Date(),
+        startTimeMs,
+        verifMethod: skippedVerifMethod,
       },
-    };
+    });
   }
 
   const misc = await checkMisc(syntax, input);
@@ -154,58 +247,55 @@ async function checkEmail(rawInput = {}) {
     mxResult = await checkMx(syntax.domain);
   } catch (err) {
     getSimilarMailProvider(syntax);
-    const endTime = new Date();
-    return {
+    return buildResult({
       input: input.to_email,
-      is_reachable: "unknown",
+      isReachable: "unknown",
+      syntax,
       misc,
       mx: {
-        error: {
+        accepts_mail: false,
+        records: [],
+        preferred: null,
+        lookupError: {
           type: err?.code || err?.name || "MxError",
           message: err?.message || String(err),
         },
       },
-      smtp: buildDefaultSmtpDetails(),
-      syntax,
+      smtpValue: buildDefaultSmtpDetails(),
+      smtpError: null,
       debug: {
-        backend_name: input.backend_name,
-        start_time: startTime.toISOString(),
-        end_time: endTime.toISOString(),
-        duration: durationFromMs(endTime.getTime() - startTimeMs),
-        smtp: {
-          verif_method: {
-            type: "skipped",
-          },
-        },
+        backendName: input.backend_name,
+        startTime,
+        endTime: new Date(),
+        startTimeMs,
+        verifMethod: skippedVerifMethod,
       },
-    };
+    });
   }
 
   if (!mxResult.accepts_mail || !mxResult.preferred) {
     getSimilarMailProvider(syntax);
-    const endTime = new Date();
-    return {
+    return buildResult({
       input: input.to_email,
-      is_reachable: "invalid",
+      isReachable: "invalid",
+      syntax,
       misc,
       mx: {
         accepts_mail: false,
         records: mxResult.records,
+        preferred: null,
+        lookupError: mxResult.lookupError || null,
       },
-      smtp: buildDefaultSmtpDetails(),
-      syntax,
+      smtpValue: buildDefaultSmtpDetails(),
+      smtpError: null,
       debug: {
-        backend_name: input.backend_name,
-        start_time: startTime.toISOString(),
-        end_time: endTime.toISOString(),
-        duration: durationFromMs(endTime.getTime() - startTimeMs),
-        smtp: {
-          verif_method: {
-            type: "skipped",
-          },
-        },
+        backendName: input.backend_name,
+        startTime,
+        endTime: new Date(),
+        startTimeMs,
+        verifMethod: skippedVerifMethod,
       },
-    };
+    });
   }
 
   const mxHost = mxResult.preferred.exchange;
@@ -232,39 +322,36 @@ async function checkEmail(rawInput = {}) {
     getSimilarMailProvider(syntax);
   }
 
-  const endTime = new Date();
-  const debugSmtp = smtpResult.debug || {
-    verif_method: {
-      type: "skipped",
-    },
+  const verifMethod = {
+    ...(smtpResult.debug?.verif_method || skippedVerifMethod),
   };
 
   if (chosenMethod !== "smtp") {
-    debugSmtp.verif_method = {
-      ...debugSmtp.verif_method,
-      requested_method: chosenMethod,
-      fallback_to: "smtp",
-    };
+    verifMethod.requested_method = chosenMethod;
+    verifMethod.fallback_to = "smtp";
   }
 
-  return {
+  return buildResult({
     input: input.to_email,
-    is_reachable: calculateReachable(misc, smtpResult.smtp, smtpResult.smtpError),
+    isReachable: calculateReachable(misc, smtpResult.smtp, smtpResult.smtpError),
+    syntax,
     misc,
     mx: {
       accepts_mail: mxResult.accepts_mail,
       records: mxResult.records,
+      preferred: mxResult.preferred,
+      lookupError: mxResult.lookupError || null,
     },
-    smtp: smtpResult.smtpError || smtpResult.smtp,
-    syntax,
+    smtpValue: smtpResult.smtp,
+    smtpError: smtpResult.smtpError,
     debug: {
-      backend_name: input.backend_name,
-      start_time: startTime.toISOString(),
-      end_time: endTime.toISOString(),
-      duration: durationFromMs(endTime.getTime() - startTimeMs),
-      smtp: debugSmtp,
+      backendName: input.backend_name,
+      startTime,
+      endTime: new Date(),
+      startTimeMs,
+      verifMethod,
     },
-  };
+  });
 }
 
 module.exports = {

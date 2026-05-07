@@ -9,8 +9,8 @@ Thanks for your interest in contributing! Contributions of all kinds are welcome
 ### 1. Fork and clone
 
 ```bash
-git clone https://github.com/<your-username>/check-if-email-exists-master.git
-cd check-if-email-exists-master
+git clone https://github.com/<your-username>/email-checker.git
+cd email-checker
 ```
 
 ### 2. Install dependencies
@@ -103,7 +103,7 @@ The core of the project lives in `src/checker/`. Most contributions will either 
 
 ## Reporting bugs
 
-Open an issue at [github.com/sagnik11/check-if-email-exists-master/issues](https://github.com/sagnik11/check-if-email-exists-master/issues).
+Open an issue at [github.com/sagnik11/email-checker/issues](https://github.com/sagnik11/email-checker/issues).
 
 Please include:
 - Node.js version (`node --version`)

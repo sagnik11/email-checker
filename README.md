@@ -6,10 +6,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/sagnik11/check-if-email-exists-master/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License: AGPL-3.0"></a>
+  <a href="https://github.com/sagnik11/email-checker/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License: AGPL-3.0"></a>
   <a href="https://nodejs.org/"><img src="https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg" alt="Node.js ≥18"></a>
   <img src="https://img.shields.io/badge/built%20with-TypeScript-3178c6.svg" alt="TypeScript">
-  <a href="https://github.com/sagnik11/check-if-email-exists-master/issues"><img src="https://img.shields.io/github/issues/sagnik11/check-if-email-exists-master.svg" alt="Open issues"></a>
+  <a href="https://github.com/sagnik11/email-checker/issues"><img src="https://img.shields.io/github/issues/sagnik11/email-checker.svg" alt="Open issues"></a>
   <a href="https://ko-fi.com/sagnikghosh1111"><img src="https://img.shields.io/badge/support-Ko--fi-FF5E5B.svg?logo=ko-fi&logoColor=white" alt="Support on Ko-fi"></a>
 </p>
 
@@ -41,6 +41,8 @@ Sending a welcome email to a bad address wastes resources, hurts deliverability,
 | **HaveIBeenPwned** | Optional — check if the address appears in breach data |
 
 Every check returns a structured JSON result and a single `is_reachable` verdict: `safe`, `risky`, `invalid`, or `unknown`.
+
+> 📖 **Docs:** browse the live documentation page at [`/docs.html`](./public/docs.html) once the server is running, or read the machine-readable OpenAPI 3.1 spec at [`/openapi.yaml`](./public/openapi.yaml).
 
 ---
 
@@ -95,8 +97,8 @@ Most teams reach for ZeroBounce, NeverBounce, or similar SaaS tools by default. 
 
 ```bash
 # Clone
-git clone https://github.com/sagnik11/check-if-email-exists-master.git
-cd check-if-email-exists-master
+git clone https://github.com/sagnik11/email-checker.git
+cd email-checker
 
 # Install dependencies
 npm install
@@ -115,25 +117,59 @@ curl -X POST http://127.0.0.1:8080/v1/check_email \
 
 **Example response:**
 
+The response is a single flat object — `is_reachable` followed by every detail field at the top level. No nested `syntax`, `mx`, `smtp`, `misc`, or `debug` sections.
+
 ```json
 {
   "input": "someone@gmail.com",
   "is_reachable": "safe",
-  "misc": {
-    "is_disposable": false,
-    "is_role_account": false,
-    "is_b2c": true,
-    "gravatar_url": null
-  },
-  "mx": { "accepts_mail": true, "records": [] },
-  "smtp": {},
-  "syntax": {
-    "is_valid_syntax": true,
-    "username": "someone",
-    "domain": "gmail.com"
-  }
+
+  "email_address": "someone@gmail.com",
+  "email_username": "someone",
+  "email_domain": "gmail.com",
+  "normalized_email": "someone@gmail.com",
+  "is_valid_syntax": true,
+  "syntax_suggestion": null,
+
+  "is_disposable_email": false,
+  "is_role_account": false,
+  "is_b2c_provider": true,
+  "gravatar_url": null,
+  "has_been_pwned": null,
+
+  "mx_accepts_mail": true,
+  "mx_records": ["gmail-smtp-in.l.google.com"],
+  "mx_preferred_host": "gmail-smtp-in.l.google.com",
+  "mx_preferred_priority": 5,
+  "mx_lookup_error_type": null,
+  "mx_lookup_error_message": null,
+
+  "smtp_can_connect": true,
+  "smtp_has_full_inbox": false,
+  "smtp_is_catch_all": false,
+  "smtp_is_deliverable": true,
+  "smtp_is_disabled_account": false,
+  "smtp_error_type": null,
+  "smtp_error_message": null,
+  "smtp_error_description": null,
+
+  "backend_name": "backend-dev",
+  "check_started_at": "2026-01-01T00:00:00.000Z",
+  "check_completed_at": "2026-01-01T00:00:01.200Z",
+  "check_duration_ms": 1200,
+  "check_duration_seconds": 1,
+  "check_duration_nanos": 200000000,
+  "verification_method_type": "smtp",
+  "verification_method_host": "gmail-smtp-in.l.google.com",
+  "verification_method_smtp_port": 25,
+  "verification_method_provider": "gmail",
+  "verification_method_chosen": "smtp",
+  "verification_method_requested": null,
+  "verification_method_fallback": null
 }
 ```
+
+See [`API_DOCUMENTATION.md`](./API_DOCUMENTATION.md) for the full field reference.
 
 ---
 
@@ -212,16 +248,29 @@ concurrency = 5
 
 ### Environment variable overrides
 
+Two naming conventions exist:
+
+- **`EMAIL_CHECKER__<SECTION>__<KEY>`** (double-underscore) — overlays on top of `backend_config.toml`. Use this for everything that has a TOML key.
+- **`EMAIL_CHECKER_<KEY>`** (single-underscore) — read directly by the checker; useful on cloud providers that pass env vars through a flat namespace and for cases where the value should win over both TOML and request body.
+
 | Variable | Description |
 |---|---|
 | `EMAIL_CHECKER__HTTP_HOST` | Bind address (default `127.0.0.1`) |
 | `EMAIL_CHECKER__HTTP_PORT` | Port (default `8080`) |
 | `EMAIL_CHECKER__HEADER_SECRET` | API secret for `x-api-secret` header |
 | `EMAIL_CHECKER__ALLOW_BROWSER_WITHOUT_SECRET` | Skip secret check for same-origin browser requests |
+| `EMAIL_CHECKER__CORS__ORIGINS` | Allowed CORS origins (comma-list or JSON array; default `*`) |
 | `EMAIL_CHECKER__WORKER__ENABLE` | Enable queue worker mode |
 | `EMAIL_CHECKER__WORKER__RABBITMQ__URL` | RabbitMQ connection string |
+| `EMAIL_CHECKER__WORKER__RABBITMQ__CONCURRENCY` | Worker prefetch count (default `5`) |
 | `EMAIL_CHECKER__STORAGE__POSTGRES__DB_URL` | Postgres connection string |
 | `PORT` | Alias for `http_port` (Heroku / Fly / Render compatible) |
+| `EMAIL_CHECKER_SMTP_PORT` | SMTP probe port. Wins over body-level `smtp_port`. Set to `587` when port 25 is blocked. |
+| `EMAIL_CHECKER_HIBP_API_KEY` | Fallback HaveIBeenPwned API key when none is sent in the request body |
+| `EMAIL_CHECKER_FROM_EMAIL` | Fallback MAIL FROM address |
+| `EMAIL_CHECKER_HELLO_NAME` | Fallback EHLO domain |
+| `EMAIL_CHECKER_BACKEND_NAME` | Fallback backend label (appears in the `backend_name` response field) |
+| `SMTP_DEBUG` | Set to `true` for verbose JSON-line logging of every SMTP transaction |
 
 ---
 
@@ -275,8 +324,8 @@ Tests cover syntax validation, SMTP response parsing, reachability scoring, conf
 
 Contributions are welcome! Please read [`CONTRIBUTING.md`](./CONTRIBUTING.md) to get started.
 
-- **Bug reports** → [open an issue](https://github.com/sagnik11/check-if-email-exists-master/issues)
-- **Feature requests** → [start a discussion](https://github.com/sagnik11/check-if-email-exists-master/issues)
+- **Bug reports** → [open an issue](https://github.com/sagnik11/email-checker/issues)
+- **Feature requests** → [start a discussion](https://github.com/sagnik11/email-checker/issues)
 - **Pull requests** → fork, branch, and open a PR against `master`
 
 ---

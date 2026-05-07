@@ -1,0 +1,717 @@
+openapi: 3.1.0
+info:
+  title: Email Validator API
+  version: "0.2.0"
+  summary: Verify email addresses without sending mail.
+  description: |
+    HTTP API for the self-hosted Email Validator service. Performs syntax checks,
+    MX DNS lookup, a live SMTP handshake, and metadata checks (disposable / role
+    / B2C / Gravatar / HaveIBeenPwned) without ever sending an email.
+
+    Every check returns a single flat JSON object — `is_reachable` followed by
+    every detail field at the top level. There are no nested `syntax`, `mx`,
+    `smtp`, `misc`, or `debug` sub-objects.
+  license:
+    name: AGPL-3.0-or-later
+    url: https://www.gnu.org/licenses/agpl-3.0.html
+  contact:
+    name: Email Validator
+    url: https://github.com/sagnik11/email-checker
+
+servers:
+  - url: http://127.0.0.1:8080
+    description: Local development server
+  - url: https://your-domain.com
+    description: Self-hosted production server (replace with your host)
+
+security:
+  - ApiSecret: []
+  - {} # Allow unauthenticated when `header_secret` is unset
+
+tags:
+  - name: meta
+    description: Service metadata (always unauthenticated)
+  - name: validation
+    description: Single-address validation
+  - name: bulk
+    description: Asynchronous bulk validation (requires worker + RabbitMQ + Postgres)
+
+paths:
+  /health:
+    get:
+      tags: [meta]
+      summary: Service health probe
+      description: Returns 200 OK while the HTTP server is alive. Always unauthenticated.
+      security: []
+      responses:
+        "200":
+          description: Service is up
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+              example:
+                ok: true
+
+  /version:
+    get:
+      tags: [meta]
+      summary: Package version + effective SMTP port
+      description: |
+        Returns the package version from `package.json` and the SMTP port the
+        service will use for outbound probes (driven by the
+        `EMAIL_CHECKER_SMTP_PORT` env var, default 25). Always unauthenticated.
+      security: []
+      responses:
+        "200":
+          description: Version information
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VersionResponse"
+
+  /:
+    get:
+      tags: [meta]
+      summary: Web UI or service info
+      description: |
+        When `public/index.html` is present, returns the bundled web UI as HTML.
+        On serverless deployments (Vercel) where the static directory is not
+        bundled, returns a small JSON service descriptor instead.
+      security: []
+      responses:
+        "200":
+          description: Web UI HTML or JSON descriptor
+          content:
+            text/html:
+              schema:
+                type: string
+                description: Bundled web UI (HTML)
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  name: { type: string }
+                  version: { type: string }
+                  endpoints:
+                    type: array
+                    items: { type: string }
+
+  /v1/check_email:
+    post:
+      tags: [validation]
+      summary: Validate a single email address
+      description: |
+        Validates one email address synchronously. Runs the five-stage pipeline
+        (syntax → misc → MX → SMTP → reachability scoring) and returns a
+        structured result.
+
+        When `worker.enable = true` the request is dispatched to RabbitMQ and
+        the API waits for the worker reply (RPC pattern, 120 s timeout).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckEmailRequest"
+            examples:
+              minimal:
+                summary: Minimal request
+                value:
+                  to_email: someone@gmail.com
+              gravatar:
+                summary: With Gravatar lookup
+                value:
+                  to_email: someone@gmail.com
+                  check_gravatar: true
+              proxied:
+                summary: Through a SOCKS5 proxy
+                value:
+                  to_email: someone@example.com
+                  proxy:
+                    host: proxy.local
+                    port: 1080
+                    username: user
+                    password: pass
+                    timeout_ms: 20000
+                  smtp_port: 25
+                  hello_name: example.com
+                  from_email: noreply@example.com
+      responses:
+        "200":
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckEmailResponse"
+        "400":
+          description: Missing `to_email`, missing/invalid `x-api-secret`, or input rejected
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "429":
+          description: Throttled — rate limit exceeded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "500":
+          description: Internal error during the check
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "503":
+          description: Worker mode enabled but RabbitMQ/Postgres not reachable
+
+  /v1/bulk:
+    post:
+      tags: [bulk]
+      summary: Submit a bulk validation job
+      description: |
+        Enqueues a list of addresses for asynchronous validation. Requires
+        `worker.enable = true`, a configured Postgres database, and a reachable
+        RabbitMQ broker.
+
+        Returns the new job's integer `job_id` immediately. Poll
+        `GET /v1/bulk/{id}` for progress and fetch
+        `GET /v1/bulk/{id}/results` once complete.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BulkSubmitRequest"
+            examples:
+              simple:
+                summary: Three addresses, no webhook
+                value:
+                  input:
+                    - alice@example.com
+                    - bob@example.com
+                    - invalid@nodomain.xyz
+              webhooked:
+                summary: With a per-result webhook
+                value:
+                  input:
+                    - alice@example.com
+                    - bob@example.com
+                  webhook:
+                    on_each_email:
+                      url: https://your-app.example.com/hooks/email-result
+                      headers:
+                        authorization: Bearer YOUR_TOKEN
+                      extra:
+                        list_id: q4-cleanup
+      responses:
+        "200":
+          description: Job accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [job_id]
+                properties:
+                  job_id:
+                    type: integer
+                    format: int64
+                    description: Identifier for polling and result retrieval
+        "400":
+          description: Empty input or auth failure
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "503":
+          description: Worker mode disabled, or RabbitMQ/Postgres not configured
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /v1/bulk/{id}:
+    get:
+      tags: [bulk]
+      summary: Poll bulk job progress
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: Current progress
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BulkJobStatus"
+        "400":
+          description: Job not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "503":
+          description: Worker / Postgres infrastructure unavailable
+
+  /v1/bulk/{id}/results:
+    get:
+      tags: [bulk]
+      summary: Fetch bulk job results
+      description: |
+        Returns once the job has finished processing all input rows. Supports
+        paginated JSON or full CSV export.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: format
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [json, csv]
+            default: json
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            description: |
+              Max rows to return. Defaults to 50 for JSON, unlimited for CSV.
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: Results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BulkResults"
+            text/csv:
+              schema:
+                type: string
+                description: CSV with header row, one row per checked address.
+        "400":
+          description: Job not found, or job still running
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+components:
+  securitySchemes:
+    ApiSecret:
+      type: apiKey
+      in: header
+      name: x-api-secret
+      description: |
+        Required on protected endpoints when `header_secret` is configured. If
+        `allow_browser_without_secret = true`, same-origin browser requests
+        (matching `Origin`/`Referer` host) bypass this check so the bundled web
+        UI can call the API without exposing the secret.
+
+  schemas:
+    VersionResponse:
+      type: object
+      required: [version, smtp_port]
+      properties:
+        version: { type: string, example: "0.2.0" }
+        smtp_port:
+          type: integer
+          description: Effective SMTP probe port (from `EMAIL_CHECKER_SMTP_PORT`, default 25)
+          example: 25
+
+    Reachability:
+      type: string
+      description: |
+        Aggregate verdict. Computed in `calculateReachable` (see
+        `src/checker/checkEmail.ts`):
+
+        - `unknown` if an SMTP error occurred (timeout, blacklist, rDNS, …)
+        - `risky` if disposable, role account, catch-all, or full inbox
+        - `invalid` if the mailbox is not deliverable, the SMTP server cannot
+          be reached, or the account is disabled
+        - `safe` otherwise
+      enum: [safe, risky, invalid, unknown]
+
+    ProxyConfig:
+      type: object
+      description: SOCKS5 proxy used to tunnel the SMTP connection.
+      required: [host, port]
+      properties:
+        host: { type: string, example: proxy.local }
+        port: { type: integer, example: 1080 }
+        username: { type: string, nullable: true }
+        password: { type: string, nullable: true }
+        timeout_ms:
+          type: integer
+          description: Connection timeout for the proxy hop, in milliseconds.
+          nullable: true
+
+    WebhookConfig:
+      type: object
+      description: |
+        Webhook delivered once per processed bulk address. Workers POST a JSON
+        body of `{ "result": <CheckEmailResponse>, "extra": <any|null> }` to
+        `on_each_email.url` with the merged headers.
+      required: [on_each_email]
+      properties:
+        on_each_email:
+          type: object
+          required: [url]
+          properties:
+            url:
+              type: string
+              format: uri
+            headers:
+              type: object
+              additionalProperties: { type: string }
+              description: Extra HTTP headers merged on top of `content-type: application/json`.
+            extra:
+              description: Opaque value forwarded back to your webhook in the body.
+
+    CheckEmailRequest:
+      type: object
+      required: [to_email]
+      properties:
+        to_email:
+          type: string
+          format: email
+          description: The email address to validate.
+        check_gravatar:
+          type: boolean
+          default: false
+          description: When true, fetch a Gravatar avatar URL for the address.
+        haveibeenpwned_api_key:
+          type: string
+          nullable: true
+          description: |
+            HIBP API key. If supplied, the response's `has_been_pwned` field
+            indicates whether the address appears in the breach database.
+            Falls back to `EMAIL_CHECKER_HIBP_API_KEY` env var.
+        proxy:
+          allOf:
+            - $ref: "#/components/schemas/ProxyConfig"
+          nullable: true
+          description: |
+            **Note:** When `proxy` is set, body-level `hello_name`, `from_email`,
+            `smtp_timeout`, and `smtp_port` are honored. When `proxy` is unset,
+            those four fields are ignored and the server's TOML config values
+            are used (matches the original Rust backend behavior).
+        hello_name:
+          type: string
+          description: EHLO domain sent to the remote SMTP server (only honored when `proxy` is set).
+        from_email:
+          type: string
+          format: email
+          description: MAIL FROM address (only honored when `proxy` is set).
+        smtp_timeout:
+          type: integer
+          description: SMTP connection timeout in **seconds** (only honored when `proxy` is set).
+        smtp_port:
+          type: integer
+          description: |
+            SMTP port (only honored when `proxy` is set). Default 25. Note that
+            `EMAIL_CHECKER_SMTP_PORT` env var (if set) wins over this field for
+            cloud providers that block port 25.
+        yahoo_verif_method:
+          type: string
+          enum: [api, headless, smtp]
+          nullable: true
+          description: Verification strategy to use for Yahoo addresses. Defaults to `smtp`.
+        hotmailb2c_verif_method:
+          type: string
+          enum: [headless, smtp]
+          nullable: true
+          description: Verification strategy to use for consumer Hotmail/Outlook addresses. Defaults to `smtp`.
+
+    CheckEmailResponse:
+      type: object
+      description: |
+        Flat result object — every check detail sits at the top level next to
+        `is_reachable`. No nested `syntax`, `mx`, `smtp`, `misc`, or `debug`
+        sub-objects.
+      required:
+        - input
+        - is_reachable
+        - email_address
+        - email_username
+        - email_domain
+        - normalized_email
+        - is_valid_syntax
+        - syntax_suggestion
+        - is_disposable_email
+        - is_role_account
+        - is_b2c_provider
+        - gravatar_url
+        - has_been_pwned
+        - mx_accepts_mail
+        - mx_records
+        - mx_preferred_host
+        - mx_preferred_priority
+        - mx_lookup_error_type
+        - mx_lookup_error_message
+        - smtp_can_connect
+        - smtp_has_full_inbox
+        - smtp_is_catch_all
+        - smtp_is_deliverable
+        - smtp_is_disabled_account
+        - smtp_error_type
+        - smtp_error_message
+        - smtp_error_description
+        - backend_name
+        - check_started_at
+        - check_completed_at
+        - check_duration_ms
+        - check_duration_seconds
+        - check_duration_nanos
+        - verification_method_type
+        - verification_method_host
+        - verification_method_smtp_port
+        - verification_method_provider
+        - verification_method_chosen
+        - verification_method_requested
+        - verification_method_fallback
+      properties:
+        input:
+          type: string
+          description: The exact `to_email` value submitted (trimmed).
+        is_reachable:
+          $ref: "#/components/schemas/Reachability"
+
+        # Syntax
+        email_address:
+          type: string
+          nullable: true
+          description: Trimmed email address. Null when syntax is invalid.
+        email_username:
+          type: string
+          description: Local part (before `@`).
+        email_domain:
+          type: string
+          description: Domain part (after `@`).
+        normalized_email:
+          type: string
+          nullable: true
+          description: |
+            Canonical form of the address (e.g. for Gmail/Googlemail, dots are
+            stripped from the local part and any `+alias` suffix is removed).
+        is_valid_syntax:
+          type: boolean
+          description: RFC-compliant syntax check (`isemail` library).
+        syntax_suggestion:
+          type: string
+          nullable: true
+          description: |
+            Suggested correction for likely typos against a small set of common
+            providers (`gmail.com`, `yahoo.com`, `outlook.com`,
+            `hotmail.com`, `protonmail.com`, `icloud.com`, `yandex.com`),
+            using Levenshtein distance < 3. Example: `gnail.com` → `gmail.com`.
+
+        # Misc
+        is_disposable_email:
+          type: boolean
+          description: Address belongs to a known disposable / temporary email provider.
+        is_role_account:
+          type: boolean
+          description: Local part is a role-based name (`info`, `admin`, `noreply`, …).
+        is_b2c_provider:
+          type: boolean
+          description: Domain is a consumer mailbox provider (Gmail, Yahoo, Outlook, …).
+        gravatar_url:
+          type: string
+          format: uri
+          nullable: true
+          description: Gravatar avatar URL when `check_gravatar=true` and one exists.
+        has_been_pwned:
+          type: boolean
+          nullable: true
+          description: Whether the address appears in HIBP breach data. Null when unchecked or API errored.
+
+        # MX
+        mx_accepts_mail:
+          type: boolean
+          description: Domain has at least one resolvable MX record.
+        mx_records:
+          type: array
+          items: { type: string }
+          description: All discovered MX hostnames (sorted by priority ascending).
+        mx_preferred_host:
+          type: string
+          nullable: true
+          description: Lowest-priority MX hostname used for the SMTP probe.
+        mx_preferred_priority:
+          type: integer
+          nullable: true
+          description: Priority of the preferred MX.
+        mx_lookup_error_type:
+          type: string
+          nullable: true
+          description: DNS error code (`ENODATA`, `ENOTFOUND`, `NXDOMAIN`, `SERVFAIL`, …) when lookup failed.
+        mx_lookup_error_message:
+          type: string
+          nullable: true
+          description: Human-readable DNS error message.
+
+        # SMTP
+        smtp_can_connect:
+          type: boolean
+          description: TCP/SMTP greeting reached the MX server.
+        smtp_has_full_inbox:
+          type: boolean
+          description: Mailbox is full / over quota.
+        smtp_is_catch_all:
+          type: boolean
+          description: Domain accepts any local part (catch-all).
+        smtp_is_deliverable:
+          type: boolean
+          description: RCPT TO accepted by the MX.
+        smtp_is_disabled_account:
+          type: boolean
+          description: Mailbox exists but is disabled / suspended.
+        smtp_error_type:
+          type: string
+          nullable: true
+          description: |
+            Error class name. Examples include connection errors (`ECONNREFUSED`,
+            `ETIMEDOUT`), TLS errors, `SmtpError`, etc.
+        smtp_error_message:
+          type: string
+          nullable: true
+          description: Raw SMTP error message (or socket error message).
+        smtp_error_description:
+          type: string
+          nullable: true
+          description: |
+            Specific descriptor when the parser classifies the error. Common
+            values: `IpBlacklisted`, `NeedsRDNS`. Otherwise null.
+
+        # Debug
+        backend_name:
+          type: string
+          description: Identifier of the backend that processed the check.
+        check_started_at:
+          type: string
+          format: date-time
+        check_completed_at:
+          type: string
+          format: date-time
+        check_duration_ms:
+          type: integer
+          description: Total wall-clock duration in milliseconds.
+        check_duration_seconds:
+          type: integer
+          description: Whole-second portion of the duration.
+        check_duration_nanos:
+          type: integer
+          description: Nanosecond remainder of the duration.
+        verification_method_type:
+          type: string
+          enum: [smtp, headless, api, skipped]
+          description: Strategy actually used.
+        verification_method_host:
+          type: string
+          nullable: true
+          description: Host targeted by the strategy.
+        verification_method_smtp_port:
+          type: integer
+          nullable: true
+          description: Port used for the SMTP probe.
+        verification_method_provider:
+          type: string
+          nullable: true
+          description: |
+            Detected provider — derived from the MX hostname. One of
+            `gmail`, `yahoo`, `hotmailb2c`, `hotmailb2b`, `proofpoint`,
+            `mimecast`, `everything_else`.
+        verification_method_chosen:
+          type: string
+          nullable: true
+          description: Method actually executed.
+        verification_method_requested:
+          type: string
+          nullable: true
+          description: Method the caller asked for (only set if it differed from the chosen one).
+        verification_method_fallback:
+          type: string
+          nullable: true
+          description: Method we fell back to when the requested one was unavailable.
+
+    BulkSubmitRequest:
+      type: object
+      required: [input]
+      properties:
+        input:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            format: email
+          description: List of email addresses to validate.
+        webhook:
+          allOf:
+            - $ref: "#/components/schemas/WebhookConfig"
+          nullable: true
+
+    BulkJobStatus:
+      type: object
+      required:
+        - job_id
+        - created_at
+        - total_records
+        - total_processed
+        - summary
+        - job_status
+      properties:
+        job_id:
+          type: integer
+          format: int64
+        created_at:
+          type: string
+          format: date-time
+        finished_at:
+          type: string
+          format: date-time
+          nullable: true
+        total_records:
+          type: integer
+        total_processed:
+          type: integer
+        summary:
+          type: object
+          required: [total_safe, total_risky, total_invalid, total_unknown]
+          properties:
+            total_safe: { type: integer }
+            total_risky: { type: integer }
+            total_invalid: { type: integer }
+            total_unknown: { type: integer }
+        job_status:
+          type: string
+          enum: [running, completed]
+
+    BulkResults:
+      type: object
+      required: [results]
+      properties:
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/CheckEmailResponse"
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: Human-readable error message.

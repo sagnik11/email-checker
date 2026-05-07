@@ -651,7 +651,8 @@
           Email Validator <em>/ v1</em>
         </div>
         <nav>
-          <a href="https://github.com/sagnik11/check-if-email-exists-master" target="_blank" rel="noopener">GitHub</a>
+          <a href="/docs.html">Docs</a>
+          <a href="https://github.com/sagnik11/email-checker" target="_blank" rel="noopener">GitHub</a>
           <a href="/health">Status</a>
           <a href="https://autter.dev" target="_blank" rel="noopener">Autter</a>
         </nav>
@@ -778,7 +779,7 @@
           </a>
         </div>
         <div class="foot-right">
-          <a href="https://github.com/sagnik11/check-if-email-exists-master" target="_blank" rel="noopener">Source</a>
+          <a href="https://github.com/sagnik11/email-checker" target="_blank" rel="noopener">Source</a>
           <a href="https://ko-fi.com/sagnikghosh1111" target="_blank" rel="noopener" class="kofi"><span class="kofi-cup">☕</span> Support on Ko-fi</a>
         </div>
       </footer>
@@ -975,39 +976,35 @@
           }
 
           // Syntax
-          const syn = body.syntax || {};
           updateCheck(0,
-            syn.is_valid_syntax ? "pass" : "fail",
-            syn.is_valid_syntax ? `${syn.username || ""}@${syn.domain || ""}` : "invalid format"
+            body.is_valid_syntax ? "pass" : "fail",
+            body.is_valid_syntax ? `${body.email_username || ""}@${body.email_domain || ""}` : "invalid format"
           );
           // MX
-          const mx = body.mx || {};
           updateCheck(1,
-            mx.accepts_mail ? "pass" : "fail",
-            mx.accepts_mail ? `${(mx.records || []).length || "1+"} record(s)` : "no records"
+            body.mx_accepts_mail ? "pass" : "fail",
+            body.mx_accepts_mail ? `${(body.mx_records || []).length || "1+"} record(s)` : "no records"
           );
           // SMTP
-          const smtp = body.smtp || {};
           let smtpStatus = "warn", smtpVal = "indeterminate";
-          if (smtp.is_deliverable) { smtpStatus = "pass"; smtpVal = "deliverable"; }
-          else if (smtp.is_disabled) { smtpStatus = "fail"; smtpVal = "mailbox disabled"; }
-          else if (smtp.can_connect_smtp === false) { smtpStatus = "fail"; smtpVal = "no connection"; }
-          else if (smtp.has_full_inbox) { smtpStatus = "warn"; smtpVal = "inbox full"; }
-          else if (smtp.is_catch_all) { smtpStatus = "warn"; smtpVal = "catch-all"; }
+          if (body.smtp_is_deliverable) { smtpStatus = "pass"; smtpVal = "deliverable"; }
+          else if (body.smtp_is_disabled_account) { smtpStatus = "fail"; smtpVal = "mailbox disabled"; }
+          else if (body.smtp_can_connect === false) { smtpStatus = "fail"; smtpVal = "no connection"; }
+          else if (body.smtp_has_full_inbox) { smtpStatus = "warn"; smtpVal = "inbox full"; }
+          else if (body.smtp_is_catch_all) { smtpStatus = "warn"; smtpVal = "catch-all"; }
           updateCheck(2, smtpStatus, smtpVal);
           // misc
-          const misc = body.misc || {};
           updateCheck(3,
-            misc.is_disposable ? "fail" : "pass",
-            misc.is_disposable ? "disposable" : "permanent"
+            body.is_disposable_email ? "fail" : "pass",
+            body.is_disposable_email ? "disposable" : "permanent"
           );
           updateCheck(4,
-            misc.is_role_account ? "warn" : "pass",
-            misc.is_role_account ? "role account" : "individual"
+            body.is_role_account ? "warn" : "pass",
+            body.is_role_account ? "role account" : "individual"
           );
           updateCheck(5,
-            misc.is_b2c ? "warn" : "pass",
-            misc.is_b2c ? "consumer provider" : "business domain"
+            body.is_b2c_provider ? "warn" : "pass",
+            body.is_b2c_provider ? "consumer provider" : "business domain"
           );
         } catch (err) {
           output.textContent = String(err);

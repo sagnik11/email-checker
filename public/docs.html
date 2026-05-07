@@ -1,0 +1,1504 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Email Validator — Documentation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Quattrocento:wght@400;700&family=Quattrocento+Sans:ital,wght@0,400;0,700;1,400&family=Inconsolata:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* Visual tokens shared with index.html — keep in sync if either file changes */
+      :root {
+        --paper: #f1ece1;
+        --paper-deep: #e7e0d1;
+        --ink: #0d1219;
+        --ink-soft: #2a3140;
+        --ink-mute: #5a6271;
+        --rule: #0d1219;
+        --accent: #ef9f28;
+        --accent-soft: #ef9f2818;
+        --copper: #c47830;
+        --navy: #1e2d4a;
+        --teal: #00a88a;
+        --teal-bright: #2effd1;
+        --warn: #9a6f06;
+        --safe: #00a88a;
+        --risky: #9a6f06;
+        --invalid: #b3331f;
+        --unknown: #5a5a5a;
+        --serif: "Quattrocento", "Times New Roman", serif;
+        --sans: "Quattrocento Sans", -apple-system, "Segoe UI", sans-serif;
+        --mono: "Inconsolata", ui-monospace, "SF Mono", monospace;
+      }
+
+      * { box-sizing: border-box; }
+
+      html, body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font-family: var(--sans);
+        font-size: 15px;
+        line-height: 1.55;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      body {
+        background-image:
+          radial-gradient(1200px 600px at 110% -10%, #e7d8b8 0%, transparent 60%),
+          radial-gradient(900px 500px at -10% 110%, #d8e0d3 0%, transparent 55%);
+        min-height: 100vh;
+        position: relative;
+        overflow-x: hidden;
+      }
+
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.08 0 0 0 0 0.10 0 0 0 0 0.11 0 0 0 0 0.16 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+        opacity: 0.55;
+        mix-blend-mode: multiply;
+        pointer-events: none;
+        z-index: 0;
+      }
+
+      .shell {
+        position: relative;
+        z-index: 1;
+        max-width: 1240px;
+        margin: 0 auto;
+        padding: clamp(20px, 3vw, 36px) clamp(20px, 4vw, 56px) 80px;
+      }
+
+      /* ── Topbar (mirrors index.html) ── */
+      .topbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-bottom: 22px;
+        border-bottom: 1px solid var(--rule);
+      }
+      .mark {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-family: var(--serif);
+        font-size: 22px;
+        letter-spacing: -0.01em;
+      }
+      .mark-dot {
+        width: 12px; height: 12px;
+        background: var(--accent);
+        border-radius: 50%;
+        display: inline-block;
+      }
+      .mark em { font-style: italic; color: var(--ink-soft); font-weight: 400; margin-left: 2px; }
+      .topbar nav {
+        display: flex; gap: 28px;
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+      }
+      .topbar nav a {
+        color: var(--ink-soft);
+        text-decoration: none;
+        transition: color 160ms;
+      }
+      .topbar nav a:hover { color: var(--accent); }
+      .topbar nav a.active { color: var(--accent); }
+
+      /* ── Hero ── */
+      .doc-hero {
+        padding: clamp(36px, 5vw, 56px) 0 clamp(24px, 3vw, 36px);
+        border-bottom: 1px solid #1a1f2322;
+      }
+      .doc-hero .tag {
+        font-family: var(--mono);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        color: var(--accent);
+        margin-bottom: 18px;
+        display: flex; align-items: center; gap: 10px;
+      }
+      .doc-hero .tag::before {
+        content: ""; width: 28px; height: 1px;
+        background: var(--accent); display: inline-block;
+      }
+      .doc-hero h1 {
+        font-family: var(--serif);
+        font-weight: 400;
+        font-size: clamp(40px, 5vw, 72px);
+        line-height: 0.98;
+        letter-spacing: -0.02em;
+        margin: 0 0 18px;
+      }
+      .doc-hero h1 i { font-style: italic; color: var(--accent); }
+      .doc-hero p {
+        max-width: 70ch;
+        color: var(--ink-soft);
+        font-size: clamp(15px, 1.1vw, 17px);
+        margin: 0;
+      }
+      .quicklinks {
+        display: flex; flex-wrap: wrap;
+        gap: 10px; margin-top: 24px;
+      }
+      .quicklinks a {
+        font-family: var(--mono);
+        font-size: 12px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--ink);
+        text-decoration: none;
+        padding: 8px 14px;
+        border: 1px solid var(--rule);
+        border-radius: 999px;
+        background: #fff8;
+        transition: background 160ms, color 160ms;
+      }
+      .quicklinks a:hover { background: var(--accent); color: var(--ink); }
+      .quicklinks a.primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+      .quicklinks a.primary:hover { background: var(--accent); color: var(--ink); border-color: var(--accent); }
+
+      /* ── Two-column layout ── */
+      .layout {
+        display: grid;
+        grid-template-columns: 240px 1fr;
+        gap: 56px;
+        margin-top: 48px;
+        align-items: start;
+      }
+      .toc {
+        position: sticky;
+        top: 24px;
+        max-height: calc(100vh - 48px);
+        overflow-y: auto;
+        font-family: var(--mono);
+        font-size: 13px;
+        padding-right: 8px;
+      }
+      .toc-title {
+        font-family: var(--sans);
+        font-size: 11px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--ink-mute);
+        margin-bottom: 14px;
+      }
+      .toc ol {
+        list-style: none;
+        margin: 0; padding: 0;
+        counter-reset: section;
+      }
+      .toc li { counter-increment: section; margin: 0; }
+      .toc a {
+        display: block;
+        color: var(--ink-soft);
+        text-decoration: none;
+        padding: 7px 0 7px 28px;
+        position: relative;
+        border-left: 1px solid #1a1f2322;
+        transition: color 160ms, border-color 160ms;
+      }
+      .toc a::before {
+        content: counter(section, decimal-leading-zero);
+        position: absolute; left: 8px; top: 7px;
+        font-size: 11px; color: var(--ink-mute);
+      }
+      .toc a:hover { color: var(--ink); }
+      .toc a.active {
+        color: var(--accent);
+        border-left-color: var(--accent);
+      }
+      .toc a.active::before { color: var(--accent); }
+
+      /* ── Content ── */
+      .content {
+        min-width: 0;
+      }
+      .content section {
+        padding: 32px 0 56px;
+        border-bottom: 1px solid #1a1f2322;
+      }
+      .content section:last-child { border-bottom: 0; }
+      .content h2 {
+        font-family: var(--serif);
+        font-weight: 400;
+        font-size: clamp(28px, 3vw, 40px);
+        letter-spacing: -0.015em;
+        margin: 0 0 6px;
+      }
+      .content h2 .num {
+        font-family: var(--mono);
+        font-size: 14px;
+        color: var(--accent);
+        letter-spacing: 0.1em;
+        margin-right: 14px;
+        vertical-align: middle;
+      }
+      .content h3 {
+        font-family: var(--serif);
+        font-weight: 700;
+        font-size: 21px;
+        margin: 32px 0 8px;
+        letter-spacing: -0.01em;
+      }
+      .content h4 {
+        font-family: var(--mono);
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        color: var(--ink-mute);
+        margin: 24px 0 10px;
+      }
+      .content p { color: var(--ink-soft); margin: 12px 0; max-width: 78ch; }
+      .content a { color: var(--copper); }
+      .content a:hover { color: var(--accent); }
+      .content ul, .content ol { color: var(--ink-soft); padding-left: 22px; }
+      .content li { margin: 5px 0; }
+      .content strong { color: var(--ink); font-weight: 700; }
+
+      .lede {
+        font-family: var(--serif);
+        font-style: italic;
+        font-size: 18px;
+        color: var(--ink-soft);
+        max-width: 70ch;
+        margin: 6px 0 18px;
+      }
+
+      /* Code blocks */
+      pre, code {
+        font-family: var(--mono);
+        font-size: 13.5px;
+      }
+      :not(pre) > code {
+        background: #1a1f2310;
+        border: 1px solid #1a1f2318;
+        padding: 1px 5px;
+        border-radius: 4px;
+        font-size: 12.5px;
+      }
+      pre {
+        background: #0d1219;
+        color: #f1ece1;
+        padding: 18px 22px;
+        border-radius: 8px;
+        overflow-x: auto;
+        line-height: 1.55;
+        margin: 14px 0;
+      }
+      pre.light {
+        background: #fff8;
+        color: var(--ink);
+        border: 1px solid var(--rule);
+      }
+      pre code { background: transparent; border: 0; padding: 0; font-size: inherit; }
+
+      /* Endpoint card */
+      .endpoint {
+        background: #fff8;
+        border: 1px solid var(--rule);
+        border-radius: 10px;
+        padding: 22px 24px;
+        margin: 22px 0;
+      }
+      .endpoint-head {
+        display: flex; align-items: center; gap: 12px;
+        flex-wrap: wrap;
+      }
+      .verb {
+        font-family: var(--mono);
+        font-weight: 600;
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        padding: 4px 10px;
+        border-radius: 4px;
+        background: var(--ink);
+        color: var(--paper);
+      }
+      .verb.get { background: var(--teal); }
+      .verb.post { background: var(--accent); color: var(--ink); }
+      .endpoint-path {
+        font-family: var(--mono);
+        font-size: 16px;
+        font-weight: 500;
+      }
+      .endpoint-summary {
+        color: var(--ink-mute);
+        font-size: 13px;
+        margin-left: auto;
+      }
+      .endpoint h4 { margin-top: 18px; }
+
+      /* Tables */
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 14px 0;
+        font-size: 13.5px;
+        background: #fff8;
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      thead th {
+        background: var(--paper-deep);
+        text-align: left;
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--ink-mute);
+        padding: 10px 14px;
+        border-bottom: 1px solid var(--rule);
+      }
+      tbody td {
+        padding: 10px 14px;
+        border-bottom: 1px solid #1a1f2318;
+        color: var(--ink-soft);
+        vertical-align: top;
+      }
+      tbody tr:last-child td { border-bottom: 0; }
+      tbody td:first-child {
+        font-family: var(--mono);
+        color: var(--ink);
+        white-space: nowrap;
+      }
+      tbody td code { font-size: 12px; }
+
+      /* Verdict pills */
+      .pill {
+        display: inline-block;
+        font-family: var(--mono);
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        padding: 3px 10px;
+        border-radius: 999px;
+        color: #fff;
+      }
+      .pill.safe { background: var(--safe); }
+      .pill.risky { background: var(--risky); }
+      .pill.invalid { background: var(--invalid); }
+      .pill.unknown { background: var(--unknown); }
+
+      /* Pipeline diagram */
+      .pipeline {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 8px;
+        margin: 24px 0 8px;
+      }
+      .pipeline .stage {
+        text-align: center;
+        padding: 14px 10px;
+        border: 1px solid var(--rule);
+        border-radius: 8px;
+        background: #fff8;
+        position: relative;
+      }
+      .pipeline .stage .n {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--accent);
+        letter-spacing: 0.12em;
+      }
+      .pipeline .stage .name {
+        font-family: var(--serif);
+        font-size: 18px;
+        margin-top: 4px;
+      }
+      .pipeline .stage .desc {
+        font-size: 11.5px;
+        color: var(--ink-mute);
+        margin-top: 4px;
+      }
+      .pipeline .stage:not(:last-child)::after {
+        content: "→";
+        position: absolute;
+        right: -10px; top: 50%;
+        transform: translateY(-50%);
+        color: var(--accent);
+        font-weight: bold;
+        z-index: 2;
+        background: var(--paper);
+        padding: 0 2px;
+      }
+
+      /* Tabs */
+      .tabs {
+        display: flex; gap: 0;
+        border-bottom: 1px solid var(--rule);
+        margin: 18px 0 0;
+      }
+      .tabs button {
+        font-family: var(--mono);
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        background: transparent;
+        border: 0;
+        padding: 10px 16px;
+        cursor: pointer;
+        color: var(--ink-mute);
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+      }
+      .tabs button.active {
+        color: var(--ink);
+        border-bottom-color: var(--accent);
+      }
+      .tab-panel { display: none; }
+      .tab-panel.active { display: block; }
+
+      /* Callout */
+      .callout {
+        background: var(--accent-soft);
+        border-left: 3px solid var(--accent);
+        padding: 14px 18px;
+        margin: 16px 0;
+        border-radius: 0 6px 6px 0;
+        font-size: 13.5px;
+        color: var(--ink-soft);
+      }
+      .callout.warn {
+        background: #b3331f10;
+        border-left-color: var(--invalid);
+      }
+      .callout strong { color: var(--ink); }
+
+      /* Details/expandable */
+      details {
+        background: #fff8;
+        border: 1px solid var(--rule);
+        border-radius: 8px;
+        padding: 12px 18px;
+        margin: 14px 0;
+      }
+      details summary {
+        cursor: pointer;
+        font-family: var(--mono);
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--ink);
+      }
+      details[open] summary { margin-bottom: 10px; }
+
+      /* Footer */
+      .doc-footer {
+        margin-top: 56px;
+        padding-top: 22px;
+        border-top: 1px solid var(--rule);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--ink-mute);
+        flex-wrap: wrap;
+        gap: 14px;
+      }
+      .doc-footer a { color: var(--ink-soft); text-decoration: none; }
+      .doc-footer a:hover { color: var(--accent); }
+
+      /* Mobile */
+      @media (max-width: 880px) {
+        .layout { grid-template-columns: 1fr; gap: 24px; }
+        .toc {
+          position: static;
+          max-height: none;
+          padding: 16px;
+          background: #fff8;
+          border: 1px solid var(--rule);
+          border-radius: 8px;
+        }
+        .pipeline { grid-template-columns: 1fr 1fr; }
+        .pipeline .stage:not(:last-child)::after { display: none; }
+      }
+      @media (max-width: 540px) {
+        .topbar nav { display: none; }
+        .pipeline { grid-template-columns: 1fr; }
+        table { font-size: 12.5px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <!-- ───── Topbar ───── -->
+      <header class="topbar">
+        <div class="mark">
+          <span class="mark-dot"></span>
+          Email Validator <em>/ docs</em>
+        </div>
+        <nav>
+          <a href="/">App</a>
+          <a href="/docs.html" class="active">Docs</a>
+          <a href="/openapi.yaml">OpenAPI</a>
+          <a href="https://github.com/sagnik11/email-checker" target="_blank" rel="noopener">GitHub</a>
+        </nav>
+      </header>
+
+      <!-- ───── Hero ───── -->
+      <section class="doc-hero">
+        <div class="tag">Documentation</div>
+        <h1>Verify before<br/>you <i>send.</i></h1>
+        <p>
+          Self-hosted email verification — protocol-level checks (syntax, MX,
+          live SMTP), disposable / role / B2C detection, optional Gravatar and
+          HaveIBeenPwned. One <code>POST /v1/check_email</code> call, one flat
+          JSON answer, four possible verdicts.
+        </p>
+        <div class="quicklinks">
+          <a href="#quickstart" class="primary">Quickstart</a>
+          <a href="#api">API reference</a>
+          <a href="/openapi.yaml">openapi.yaml</a>
+          <a href="#self-hosting">Self-host</a>
+          <a href="#architecture">Architecture</a>
+        </div>
+      </section>
+
+      <!-- ───── Two-column layout ───── -->
+      <div class="layout">
+        <aside class="toc" aria-label="Table of contents">
+          <div class="toc-title">On this page</div>
+          <ol>
+            <li><a href="#overview">Overview</a></li>
+            <li><a href="#quickstart">Quickstart</a></li>
+            <li><a href="#api">API reference</a></li>
+            <li><a href="#schemas">Schemas</a></li>
+            <li><a href="#auth">Authentication</a></li>
+            <li><a href="#cors">CORS</a></li>
+            <li><a href="#configuration">Configuration</a></li>
+            <li><a href="#deployment">Deployment</a></li>
+            <li><a href="#self-hosting">Self-hosting</a></li>
+            <li><a href="#architecture">Architecture</a></li>
+            <li><a href="#contributing">Contributing</a></li>
+            <li><a href="#license">License</a></li>
+          </ol>
+        </aside>
+
+        <main class="content">
+          <!-- ── 1. Overview ── -->
+          <section id="overview">
+            <h2><span class="num">01</span>Overview</h2>
+            <p class="lede">
+              A privacy-preserving alternative to ZeroBounce / NeverBounce. Runs
+              on your own infrastructure, never sends mail, and exposes one
+              clean HTTP API.
+            </p>
+
+            <p>
+              Each address goes through a five-stage pipeline. The result is a
+              single flat JSON object — every field at the top level next to
+              <code>is_reachable</code>, no nested <code>syntax</code> /
+              <code>mx</code> / <code>smtp</code> / <code>misc</code> /
+              <code>debug</code> sub-objects.
+            </p>
+
+            <div class="pipeline">
+              <div class="stage">
+                <div class="n">01</div>
+                <div class="name">Syntax</div>
+                <div class="desc">RFC 5321/5322 + Levenshtein typo suggestions</div>
+              </div>
+              <div class="stage">
+                <div class="n">02</div>
+                <div class="name">Misc</div>
+                <div class="desc">disposable / role / B2C / Gravatar / HIBP</div>
+              </div>
+              <div class="stage">
+                <div class="n">03</div>
+                <div class="name">MX</div>
+                <div class="desc">DNS lookup, priority sort</div>
+              </div>
+              <div class="stage">
+                <div class="n">04</div>
+                <div class="name">SMTP</div>
+                <div class="desc">EHLO → MAIL FROM → RCPT TO + catch-all probe</div>
+              </div>
+              <div class="stage">
+                <div class="n">05</div>
+                <div class="name">Score</div>
+                <div class="desc">safe / risky / invalid / unknown</div>
+              </div>
+            </div>
+
+            <h3>Verdicts</h3>
+            <p>
+              <span class="pill safe">safe</span>
+              mailbox exists and looks deliverable.
+              <span class="pill risky">risky</span>
+              deliverable but flagged (disposable, role, catch-all, full inbox).
+              <span class="pill invalid">invalid</span>
+              syntax / domain / mailbox failure.
+              <span class="pill unknown">unknown</span>
+              network or provider issue — try again later.
+            </p>
+
+            <h3>License</h3>
+            <p>
+              Dual-licensed: <strong>AGPL-3.0</strong> for open source use, or a
+              commercial license from <a href="https://autter.dev">Autter</a>
+              for proprietary software. See
+              <a href="/LICENSE.md">LICENSE.md</a>.
+            </p>
+          </section>
+
+          <!-- ── 2. Quickstart ── -->
+          <section id="quickstart">
+            <h2><span class="num">02</span>Quickstart</h2>
+
+            <h3>Run it locally</h3>
+            <pre><code>git clone https://github.com/sagnik11/email-checker.git
+cd email-checker
+npm install
+npm run dev
+# server now listening on http://127.0.0.1:8080</code></pre>
+
+            <h3>Validate an address</h3>
+            <div class="tabs" role="tablist" data-tabgroup="check">
+              <button class="active" data-tab="check-curl">cURL</button>
+              <button data-tab="check-node">Node</button>
+              <button data-tab="check-python">Python</button>
+            </div>
+            <div class="tab-panel active" id="check-curl">
+              <pre><code>curl -X POST http://127.0.0.1:8080/v1/check_email \
+  -H 'content-type: application/json' \
+  -d '{"to_email":"someone@gmail.com"}'</code></pre>
+            </div>
+            <div class="tab-panel" id="check-node">
+              <pre><code>const res = await fetch("http://127.0.0.1:8080/v1/check_email", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ to_email: "someone@gmail.com" }),
+});
+const data = await res.json();
+console.log(data.is_reachable); // "safe" | "risky" | "invalid" | "unknown"</code></pre>
+            </div>
+            <div class="tab-panel" id="check-python">
+              <pre><code>import requests
+
+resp = requests.post(
+    "http://127.0.0.1:8080/v1/check_email",
+    json={"to_email": "someone@gmail.com"},
+    timeout=30,
+)
+print(resp.json()["is_reachable"])</code></pre>
+            </div>
+
+            <h3>Submit a bulk job</h3>
+            <p>
+              Bulk mode requires <code>worker.enable = true</code>, Postgres,
+              and RabbitMQ. See <a href="#self-hosting">Self-hosting</a>.
+            </p>
+            <pre><code># 1. submit
+curl -X POST http://127.0.0.1:8080/v1/bulk \
+  -H 'content-type: application/json' \
+  -H 'x-api-secret: YOUR_SECRET' \
+  -d '{"input":["alice@example.com","bob@example.com"]}'
+# → { "job_id": 42 }
+
+# 2. poll progress
+curl http://127.0.0.1:8080/v1/bulk/42
+
+# 3. download results when complete
+curl 'http://127.0.0.1:8080/v1/bulk/42/results?format=csv' -o results.csv</code></pre>
+          </section>
+
+          <!-- ── 3. API ── -->
+          <section id="api">
+            <h2><span class="num">03</span>API reference</h2>
+            <p>
+              Six endpoints. <code>/health</code>, <code>/version</code>, and
+              <code>/</code> are unauthenticated. All <code>/v1/*</code>
+              endpoints require an <code>x-api-secret</code> header when
+              <code>header_secret</code> is configured (see
+              <a href="#auth">Authentication</a>).
+            </p>
+
+            <!-- /health -->
+            <div class="endpoint">
+              <div class="endpoint-head">
+                <span class="verb get">GET</span>
+                <span class="endpoint-path">/health</span>
+                <span class="endpoint-summary">Service liveness</span>
+              </div>
+              <h4>Response — 200</h4>
+              <pre><code>{ "ok": true }</code></pre>
+            </div>
+
+            <!-- /version -->
+            <div class="endpoint">
+              <div class="endpoint-head">
+                <span class="verb get">GET</span>
+                <span class="endpoint-path">/version</span>
+                <span class="endpoint-summary">Package version + effective SMTP port</span>
+              </div>
+              <h4>Response — 200</h4>
+              <pre><code>{ "version": "0.2.0", "smtp_port": 25 }</code></pre>
+              <p>
+                <code>smtp_port</code> reflects the
+                <code>EMAIL_CHECKER_SMTP_PORT</code> env var (default 25). The
+                bundled web UI uses this to pre-fill the SMTP port input.
+              </p>
+            </div>
+
+            <!-- /v1/check_email -->
+            <div class="endpoint">
+              <div class="endpoint-head">
+                <span class="verb post">POST</span>
+                <span class="endpoint-path">/v1/check_email</span>
+                <span class="endpoint-summary">Validate one address</span>
+              </div>
+
+              <h4>Request body</h4>
+              <table>
+                <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+                <tbody>
+                  <tr><td>to_email *</td><td>string</td><td>Address to validate. Required.</td></tr>
+                  <tr><td>check_gravatar</td><td>boolean</td><td>Fetch Gravatar avatar URL.</td></tr>
+                  <tr><td>haveibeenpwned_api_key</td><td>string</td><td>HIBP API key. Falls back to <code>EMAIL_CHECKER_HIBP_API_KEY</code>.</td></tr>
+                  <tr><td>proxy</td><td>object</td><td>SOCKS5 proxy. See <a href="#schema-proxy">ProxyConfig</a>.</td></tr>
+                  <tr><td>hello_name</td><td>string</td><td>EHLO domain (only honored when <code>proxy</code> is set).</td></tr>
+                  <tr><td>from_email</td><td>string</td><td>MAIL FROM address (only honored when <code>proxy</code> is set).</td></tr>
+                  <tr><td>smtp_timeout</td><td>integer</td><td>SMTP timeout in <strong>seconds</strong> (only honored when <code>proxy</code> is set).</td></tr>
+                  <tr><td>smtp_port</td><td>integer</td><td>SMTP port (only honored when <code>proxy</code> is set; default 25). The <code>EMAIL_CHECKER_SMTP_PORT</code> env var wins over this.</td></tr>
+                  <tr><td>yahoo_verif_method</td><td>string</td><td>One of <code>api</code>, <code>headless</code>, <code>smtp</code>. Default <code>smtp</code>.</td></tr>
+                  <tr><td>hotmailb2c_verif_method</td><td>string</td><td>One of <code>headless</code>, <code>smtp</code>. Default <code>smtp</code>.</td></tr>
+                </tbody>
+              </table>
+
+              <div class="callout">
+                <strong>Note:</strong> when <code>proxy</code> is unset, the
+                body-level <code>hello_name</code>, <code>from_email</code>,
+                <code>smtp_timeout</code>, and <code>smtp_port</code> are
+                ignored and the server's TOML config is used instead. This
+                preserves the original Rust backend's behavior.
+              </div>
+
+              <h4>Response — 200</h4>
+              <pre><code>{
+  "input": "someone@gmail.com",
+  "is_reachable": "safe",
+
+  "email_address": "someone@gmail.com",
+  "email_username": "someone",
+  "email_domain": "gmail.com",
+  "normalized_email": "someone@gmail.com",
+  "is_valid_syntax": true,
+  "syntax_suggestion": null,
+
+  "is_disposable_email": false,
+  "is_role_account": false,
+  "is_b2c_provider": true,
+  "gravatar_url": null,
+  "has_been_pwned": null,
+
+  "mx_accepts_mail": true,
+  "mx_records": ["gmail-smtp-in.l.google.com"],
+  "mx_preferred_host": "gmail-smtp-in.l.google.com",
+  "mx_preferred_priority": 5,
+  "mx_lookup_error_type": null,
+  "mx_lookup_error_message": null,
+
+  "smtp_can_connect": true,
+  "smtp_has_full_inbox": false,
+  "smtp_is_catch_all": false,
+  "smtp_is_deliverable": true,
+  "smtp_is_disabled_account": false,
+  "smtp_error_type": null,
+  "smtp_error_message": null,
+  "smtp_error_description": null,
+
+  "backend_name": "backend-dev",
+  "check_started_at": "2026-01-01T00:00:00.000Z",
+  "check_completed_at": "2026-01-01T00:00:01.200Z",
+  "check_duration_ms": 1200,
+  "check_duration_seconds": 1,
+  "check_duration_nanos": 200000000,
+  "verification_method_type": "smtp",
+  "verification_method_host": "gmail-smtp-in.l.google.com",
+  "verification_method_smtp_port": 25,
+  "verification_method_provider": "gmail",
+  "verification_method_chosen": "smtp",
+  "verification_method_requested": null,
+  "verification_method_fallback": null
+}</code></pre>
+              <p>Field-by-field reference: <a href="#schemas">Schemas</a>.</p>
+
+              <h4>Errors</h4>
+              <table>
+                <thead><tr><th>Status</th><th>Body</th><th>When</th></tr></thead>
+                <tbody>
+                  <tr><td>400</td><td><code>{ error: "to_email field is required." }</code></td><td>Missing field, missing/invalid <code>x-api-secret</code></td></tr>
+                  <tr><td>429</td><td><code>{ error: "Rate limit ... exceeded ..." }</code></td><td>Throttled</td></tr>
+                  <tr><td>500</td><td><code>{ error: "..." }</code></td><td>Internal error during the check</td></tr>
+                  <tr><td>503</td><td><code>{ error: "..." }</code></td><td>Worker mode enabled but RabbitMQ/Postgres unavailable</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- /v1/bulk -->
+            <div class="endpoint">
+              <div class="endpoint-head">
+                <span class="verb post">POST</span>
+                <span class="endpoint-path">/v1/bulk</span>
+                <span class="endpoint-summary">Submit a bulk job (async)</span>
+              </div>
+
+              <p>
+                Requires <code>worker.enable = true</code>, Postgres, and a
+                reachable RabbitMQ broker.
+              </p>
+
+              <h4>Request body</h4>
+              <table>
+                <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+                <tbody>
+                  <tr><td>input *</td><td>string[]</td><td>Addresses to validate. Required, non-empty.</td></tr>
+                  <tr><td>webhook</td><td>object</td><td>Per-result webhook. See <a href="#schema-webhook">WebhookConfig</a>.</td></tr>
+                </tbody>
+              </table>
+
+              <h4>Response — 200</h4>
+              <pre><code>{ "job_id": 42 }</code></pre>
+            </div>
+
+            <!-- /v1/bulk/:id -->
+            <div class="endpoint">
+              <div class="endpoint-head">
+                <span class="verb get">GET</span>
+                <span class="endpoint-path">/v1/bulk/{id}</span>
+                <span class="endpoint-summary">Poll job progress</span>
+              </div>
+              <h4>Response — 200</h4>
+              <pre><code>{
+  "job_id": 42,
+  "created_at": "2026-01-01T00:00:00.000Z",
+  "finished_at": null,
+  "total_records": 1000,
+  "total_processed": 532,
+  "summary": {
+    "total_safe": 410,
+    "total_risky": 64,
+    "total_invalid": 51,
+    "total_unknown": 7
+  },
+  "job_status": "running"
+}</code></pre>
+              <p>
+                <code>job_status</code> is <code>"completed"</code> once
+                <code>total_processed === total_records</code>;
+                <code>finished_at</code> stays null until then.
+              </p>
+            </div>
+
+            <!-- /v1/bulk/:id/results -->
+            <div class="endpoint">
+              <div class="endpoint-head">
+                <span class="verb get">GET</span>
+                <span class="endpoint-path">/v1/bulk/{id}/results</span>
+                <span class="endpoint-summary">Fetch results</span>
+              </div>
+              <h4>Query parameters</h4>
+              <table>
+                <thead><tr><th>Param</th><th>Default</th><th>Description</th></tr></thead>
+                <tbody>
+                  <tr><td>format</td><td><code>json</code></td><td>One of <code>json</code>, <code>csv</code>.</td></tr>
+                  <tr><td>limit</td><td>50 (json), all (csv)</td><td>Max rows.</td></tr>
+                  <tr><td>offset</td><td>0</td><td>Pagination offset.</td></tr>
+                </tbody>
+              </table>
+              <p>
+                Returns 400 if the job is still running. Wait for
+                <code>job_status === "completed"</code>.
+              </p>
+              <h4>Response — 200 (json)</h4>
+              <pre><code>{ "results": [ /* CheckEmailResponse, ... */ ] }</code></pre>
+            </div>
+          </section>
+
+          <!-- ── 4. Schemas ── -->
+          <section id="schemas">
+            <h2><span class="num">04</span>Schemas</h2>
+            <p>
+              Mirrored from <a href="/openapi.yaml">openapi.yaml</a>. Use the
+              YAML spec to generate clients (Swagger UI, Redoc,
+              <code>openapi-generator</code>, etc.).
+            </p>
+
+            <h3 id="schema-checkemailresponse">CheckEmailResponse</h3>
+
+            <h4>Verdict</h4>
+            <table>
+              <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+              <tbody>
+                <tr><td>input</td><td>string</td><td>Trimmed copy of the submitted <code>to_email</code>.</td></tr>
+                <tr><td>is_reachable</td><td>enum</td><td><code>safe</code> · <code>risky</code> · <code>invalid</code> · <code>unknown</code></td></tr>
+              </tbody>
+            </table>
+
+            <h4>Syntax</h4>
+            <table>
+              <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+              <tbody>
+                <tr><td>email_address</td><td>string · null</td><td>Trimmed address. Null when syntax invalid.</td></tr>
+                <tr><td>email_username</td><td>string</td><td>Local part.</td></tr>
+                <tr><td>email_domain</td><td>string</td><td>Domain.</td></tr>
+                <tr><td>normalized_email</td><td>string · null</td><td>Canonical form (Gmail dots/aliases stripped).</td></tr>
+                <tr><td>is_valid_syntax</td><td>boolean</td><td>RFC-compliant syntax check.</td></tr>
+                <tr><td>syntax_suggestion</td><td>string · null</td><td>Typo correction (e.g. <code>gnail.com</code> → <code>gmail.com</code>).</td></tr>
+              </tbody>
+            </table>
+
+            <h4>Misc</h4>
+            <table>
+              <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+              <tbody>
+                <tr><td>is_disposable_email</td><td>boolean</td><td>Throwaway / temporary domain.</td></tr>
+                <tr><td>is_role_account</td><td>boolean</td><td>Local part is role-based (<code>info</code>, <code>admin</code>, <code>noreply</code>, …).</td></tr>
+                <tr><td>is_b2c_provider</td><td>boolean</td><td>Consumer mailbox (Gmail, Yahoo, Outlook, …).</td></tr>
+                <tr><td>gravatar_url</td><td>string · null</td><td>Avatar URL when <code>check_gravatar=true</code>.</td></tr>
+                <tr><td>has_been_pwned</td><td>boolean · null</td><td>HIBP breach lookup result.</td></tr>
+              </tbody>
+            </table>
+
+            <h4>MX</h4>
+            <table>
+              <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+              <tbody>
+                <tr><td>mx_accepts_mail</td><td>boolean</td><td>Domain has resolvable MX records.</td></tr>
+                <tr><td>mx_records</td><td>string[]</td><td>All MX hostnames (sorted by priority).</td></tr>
+                <tr><td>mx_preferred_host</td><td>string · null</td><td>Lowest-priority MX (used for the SMTP probe).</td></tr>
+                <tr><td>mx_preferred_priority</td><td>integer · null</td><td>Priority of the preferred MX.</td></tr>
+                <tr><td>mx_lookup_error_type</td><td>string · null</td><td>DNS error code (<code>ENODATA</code>, <code>ENOTFOUND</code>, …).</td></tr>
+                <tr><td>mx_lookup_error_message</td><td>string · null</td><td>Human-readable DNS error.</td></tr>
+              </tbody>
+            </table>
+
+            <h4>SMTP</h4>
+            <table>
+              <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+              <tbody>
+                <tr><td>smtp_can_connect</td><td>boolean</td><td>Reached the SMTP greeting.</td></tr>
+                <tr><td>smtp_has_full_inbox</td><td>boolean</td><td>Mailbox over quota.</td></tr>
+                <tr><td>smtp_is_catch_all</td><td>boolean</td><td>Domain accepts any local part.</td></tr>
+                <tr><td>smtp_is_deliverable</td><td>boolean</td><td>RCPT TO accepted.</td></tr>
+                <tr><td>smtp_is_disabled_account</td><td>boolean</td><td>Mailbox disabled / suspended.</td></tr>
+                <tr><td>smtp_error_type</td><td>string · null</td><td>Error class (<code>ECONNREFUSED</code>, <code>ETIMEDOUT</code>, <code>SmtpError</code>, …).</td></tr>
+                <tr><td>smtp_error_message</td><td>string · null</td><td>Raw SMTP / socket error message.</td></tr>
+                <tr><td>smtp_error_description</td><td>string · null</td><td>Classifier tag: <code>IpBlacklisted</code>, <code>NeedsRDNS</code>, etc.</td></tr>
+              </tbody>
+            </table>
+
+            <h4>Debug / metadata</h4>
+            <table>
+              <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+              <tbody>
+                <tr><td>backend_name</td><td>string</td><td>Backend identifier.</td></tr>
+                <tr><td>check_started_at</td><td>ISO-8601</td><td>Pipeline start.</td></tr>
+                <tr><td>check_completed_at</td><td>ISO-8601</td><td>Pipeline finish.</td></tr>
+                <tr><td>check_duration_ms</td><td>integer</td><td>Total ms.</td></tr>
+                <tr><td>check_duration_seconds</td><td>integer</td><td>Whole-second portion.</td></tr>
+                <tr><td>check_duration_nanos</td><td>integer</td><td>Nanosecond remainder.</td></tr>
+                <tr><td>verification_method_type</td><td>enum</td><td><code>smtp</code> · <code>headless</code> · <code>api</code> · <code>skipped</code></td></tr>
+                <tr><td>verification_method_host</td><td>string · null</td><td>Host used.</td></tr>
+                <tr><td>verification_method_smtp_port</td><td>integer · null</td><td>Port used.</td></tr>
+                <tr><td>verification_method_provider</td><td>string · null</td><td><code>gmail</code> · <code>yahoo</code> · <code>hotmailb2c</code> · <code>hotmailb2b</code> · <code>proofpoint</code> · <code>mimecast</code> · <code>everything_else</code></td></tr>
+                <tr><td>verification_method_chosen</td><td>string · null</td><td>Method actually run.</td></tr>
+                <tr><td>verification_method_requested</td><td>string · null</td><td>Method the caller asked for (if different).</td></tr>
+                <tr><td>verification_method_fallback</td><td>string · null</td><td>Fallback target when requested method was unavailable.</td></tr>
+              </tbody>
+            </table>
+
+            <h3 id="schema-proxy">ProxyConfig</h3>
+            <p>SOCKS5 tunnel for the SMTP connection.</p>
+            <table>
+              <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+              <tbody>
+                <tr><td>host</td><td>string</td><td>yes</td><td>Proxy host.</td></tr>
+                <tr><td>port</td><td>integer</td><td>yes</td><td>Proxy port.</td></tr>
+                <tr><td>username</td><td>string</td><td>no</td><td>SOCKS5 user id.</td></tr>
+                <tr><td>password</td><td>string</td><td>no</td><td>SOCKS5 password.</td></tr>
+                <tr><td>timeout_ms</td><td>integer</td><td>no</td><td>Proxy-hop timeout in ms.</td></tr>
+              </tbody>
+            </table>
+
+            <h3 id="schema-webhook">WebhookConfig</h3>
+            <p>
+              Per-result webhook delivered by the worker for each address in a
+              bulk job. POSTs JSON
+              <code>{ result: CheckEmailResponse, extra: any }</code> to
+              <code>on_each_email.url</code> with the merged headers.
+            </p>
+            <pre class="light"><code>{
+  "webhook": {
+    "on_each_email": {
+      "url": "https://your-app/hooks/email-result",
+      "headers": { "authorization": "Bearer ..." },
+      "extra":   { "list_id": "q4-cleanup" }
+    }
+  }
+}</code></pre>
+          </section>
+
+          <!-- ── 5. Auth ── -->
+          <section id="auth">
+            <h2><span class="num">05</span>Authentication</h2>
+            <p>
+              Send the configured secret with every protected request:
+            </p>
+            <pre><code>x-api-secret: YOUR_SECRET</code></pre>
+            <p>
+              When <code>header_secret</code> is unset, all routes are open.
+              When it's set, missing or wrong values return <code>400</code>.
+              <code>/health</code>, <code>/version</code>, and <code>/</code>
+              are always unauthenticated.
+            </p>
+            <div class="callout">
+              <strong>Browser bypass.</strong> Set
+              <code>allow_browser_without_secret = true</code> (or
+              <code>EMAIL_CHECKER__ALLOW_BROWSER_WITHOUT_SECRET=true</code>) to
+              let same-origin browser requests skip the secret check. Used by
+              the bundled web UI so the secret never leaks to the page source.
+              The check verifies the request's <code>Origin</code> /
+              <code>Referer</code> host matches the server's <code>Host</code>.
+            </div>
+          </section>
+
+          <!-- ── 6. CORS ── -->
+          <section id="cors">
+            <h2><span class="num">06</span>CORS</h2>
+            <p>
+              The default is <code>*</code> (all origins allowed). Restrict it
+              for production:
+            </p>
+            <pre><code>EMAIL_CHECKER__CORS__ORIGINS=https://app.example.com,https://www.app.example.com</code></pre>
+            <p>
+              Comma-separated string or JSON array. The server sends
+              <code>Access-Control-Allow-Headers: content-type, x-api-secret,
+              authorization</code> and a 24-hour preflight cache.
+            </p>
+          </section>
+
+          <!-- ── 7. Configuration ── -->
+          <section id="configuration">
+            <h2><span class="num">07</span>Configuration</h2>
+            <p>
+              Loaded by <code>src/config.ts</code> in this priority order
+              (later overrides earlier):
+            </p>
+            <ol>
+              <li>Built-in defaults</li>
+              <li><code>backend_config.toml</code> (or path passed via <code>--config</code>)</li>
+              <li>Double-underscore env vars: <code>EMAIL_CHECKER__&lt;SECTION&gt;__&lt;KEY&gt;</code></li>
+              <li><code>PORT</code> env var → <code>http_port</code> fallback (Heroku / Fly / Render)</li>
+            </ol>
+
+            <h3>Common settings</h3>
+            <table>
+              <thead><tr><th>Env var</th><th>TOML key</th><th>Default</th><th>Notes</th></tr></thead>
+              <tbody>
+                <tr><td>EMAIL_CHECKER__HTTP_HOST</td><td>http_host</td><td><code>127.0.0.1</code></td><td>Bind address</td></tr>
+                <tr><td>EMAIL_CHECKER__HTTP_PORT</td><td>http_port</td><td><code>8080</code></td><td><code>PORT</code> also accepted</td></tr>
+                <tr><td>EMAIL_CHECKER__HEADER_SECRET</td><td>header_secret</td><td>—</td><td>API secret for <code>x-api-secret</code></td></tr>
+                <tr><td>EMAIL_CHECKER__ALLOW_BROWSER_WITHOUT_SECRET</td><td>allow_browser_without_secret</td><td><code>false</code></td><td>Same-origin browser bypass</td></tr>
+                <tr><td>EMAIL_CHECKER__HELLO_NAME</td><td>hello_name</td><td><code>example.com</code></td><td>EHLO domain</td></tr>
+                <tr><td>EMAIL_CHECKER__FROM_EMAIL</td><td>from_email</td><td><code>noreply@example.com</code></td><td>MAIL FROM address</td></tr>
+                <tr><td>EMAIL_CHECKER__SMTP_TIMEOUT</td><td>smtp_timeout</td><td>15s</td><td>SMTP timeout (seconds)</td></tr>
+                <tr><td>EMAIL_CHECKER__BACKEND_NAME</td><td>backend_name</td><td><code>backend-dev</code></td><td>Label in debug output</td></tr>
+                <tr><td>EMAIL_CHECKER__CORS__ORIGINS</td><td>cors.origins</td><td><code>["*"]</code></td><td>Comma-list or JSON array</td></tr>
+              </tbody>
+            </table>
+
+            <h3>Throttling</h3>
+            <table>
+              <thead><tr><th>Env var</th><th>TOML key</th></tr></thead>
+              <tbody>
+                <tr><td>EMAIL_CHECKER__THROTTLE__MAX_REQUESTS_PER_SECOND</td><td>throttle.max_requests_per_second</td></tr>
+                <tr><td>EMAIL_CHECKER__THROTTLE__MAX_REQUESTS_PER_MINUTE</td><td>throttle.max_requests_per_minute</td></tr>
+                <tr><td>EMAIL_CHECKER__THROTTLE__MAX_REQUESTS_PER_HOUR</td><td>throttle.max_requests_per_hour</td></tr>
+                <tr><td>EMAIL_CHECKER__THROTTLE__MAX_REQUESTS_PER_DAY</td><td>throttle.max_requests_per_day</td></tr>
+              </tbody>
+            </table>
+
+            <h3>Worker mode</h3>
+            <table>
+              <thead><tr><th>Env var</th><th>TOML key</th><th>Default</th></tr></thead>
+              <tbody>
+                <tr><td>EMAIL_CHECKER__WORKER__ENABLE</td><td>worker.enable</td><td><code>false</code></td></tr>
+                <tr><td>EMAIL_CHECKER__WORKER__RABBITMQ__URL</td><td>worker.rabbitmq.url</td><td><code>amqp://guest:guest@localhost:5672</code></td></tr>
+                <tr><td>EMAIL_CHECKER__WORKER__RABBITMQ__CONCURRENCY</td><td>worker.rabbitmq.concurrency</td><td><code>5</code></td></tr>
+                <tr><td>EMAIL_CHECKER__STORAGE__POSTGRES__DB_URL</td><td>storage.postgres.db_url</td><td>—</td></tr>
+              </tbody>
+            </table>
+
+            <h3>Single-underscore aliases</h3>
+            <p>
+              These bypass the TOML overlay and are read directly by the
+              checker. Useful for cloud providers that pass env vars through a
+              flat namespace.
+            </p>
+            <table>
+              <thead><tr><th>Env var</th><th>Used by</th></tr></thead>
+              <tbody>
+                <tr><td>EMAIL_CHECKER_SMTP_PORT</td><td>SMTP probe port. Wins over body-level <code>smtp_port</code>. Useful when port 25 is blocked.</td></tr>
+                <tr><td>EMAIL_CHECKER_HIBP_API_KEY</td><td>HaveIBeenPwned API key fallback.</td></tr>
+                <tr><td>EMAIL_CHECKER_FROM_EMAIL</td><td>MAIL FROM fallback.</td></tr>
+                <tr><td>EMAIL_CHECKER_HELLO_NAME</td><td>EHLO domain fallback.</td></tr>
+                <tr><td>EMAIL_CHECKER_BACKEND_NAME</td><td>Backend label fallback.</td></tr>
+                <tr><td>SMTP_DEBUG</td><td>Set to <code>true</code> for verbose JSON-line logging of the SMTP transaction.</td></tr>
+              </tbody>
+            </table>
+
+            <details>
+              <summary>Inactive / stub config fields</summary>
+              <p>
+                Present in <code>defaultConfig()</code> but not wired up in
+                this codebase. Leave them blank.
+              </p>
+              <ul>
+                <li><code>sentry_dsn</code> — config field exists but no Sentry SDK is installed.</li>
+                <li><code>commercial_license_trial</code> — placeholder for the hosted commercial trial integration.</li>
+                <li><code>webdriver_addr</code> / <code>webdriver</code> — stubs from a removed headless-browser verification mode.</li>
+                <li><code>overrides.proxies</code> — currently unused.</li>
+              </ul>
+            </details>
+          </section>
+
+          <!-- ── 8. Deployment ── -->
+          <section id="deployment">
+            <h2><span class="num">08</span>Deployment</h2>
+
+            <div class="tabs" data-tabgroup="deploy">
+              <button class="active" data-tab="deploy-docker">Docker</button>
+              <button data-tab="deploy-fly">Fly.io</button>
+              <button data-tab="deploy-vercel">Vercel</button>
+              <button data-tab="deploy-vps">VPS</button>
+            </div>
+
+            <div class="tab-panel active" id="deploy-docker">
+              <pre><code>docker build -t email-validator .
+docker run -p 8080:8080 \
+  -e EMAIL_CHECKER__HTTP_HOST=0.0.0.0 \
+  -e EMAIL_CHECKER__HEADER_SECRET=YOUR_SECRET \
+  email-validator</code></pre>
+              <p>
+                Multi-stage build, Node 20 Alpine, exposes <code>8080</code>.
+                See <a href="/Dockerfile">Dockerfile</a>.
+              </p>
+            </div>
+
+            <div class="tab-panel" id="deploy-fly">
+              <pre><code>fly launch --no-deploy
+fly secrets set \
+  EMAIL_CHECKER__HEADER_SECRET=YOUR_SECRET \
+  EMAIL_CHECKER__ALLOW_BROWSER_WITHOUT_SECRET=true
+fly deploy</code></pre>
+              <p>
+                Full step-by-step: <a href="/FLY_DEPLOYMENT.md">FLY_DEPLOYMENT.md</a>.
+                Default region <code>sin</code>, 512 MB shared CPU, HTTPS forced,
+                <code>min_machines_running = 1</code>.
+              </p>
+            </div>
+
+            <div class="tab-panel" id="deploy-vercel">
+              <p>
+                <code>api/index.ts</code> wraps the Express app as a serverless
+                function. <code>vercel.json</code> routes everything to it.
+                1 GB / 30 s limit.
+              </p>
+              <ol>
+                <li>Push the repo to GitHub.</li>
+                <li>Import into <a href="https://vercel.com" target="_blank">Vercel</a>.</li>
+                <li>Set Node.js runtime to 18+.</li>
+                <li>Add env vars in Project Settings.</li>
+              </ol>
+              <div class="callout warn">
+                <strong>Limitation:</strong> serverless cannot run the worker
+                or hold persistent RabbitMQ / Postgres connections, so bulk
+                mode is not supported on Vercel. Single-check API only.
+              </div>
+            </div>
+
+            <div class="tab-panel" id="deploy-vps">
+              <pre><code>npm install
+npm run build
+EMAIL_CHECKER__HTTP_HOST=0.0.0.0 \
+EMAIL_CHECKER__HEADER_SECRET=YOUR_SECRET \
+npm start</code></pre>
+              <p>
+                Pair with <code>systemd</code>, PM2, or a process supervisor of
+                your choice. Reverse-proxy via Caddy / nginx for HTTPS.
+              </p>
+              <p>
+                If outbound port 25 is blocked by your provider, use
+                <code>EMAIL_CHECKER_SMTP_PORT=587</code> or route through a
+                SOCKS5 proxy (<a href="#self-hosting">below</a>).
+              </p>
+            </div>
+          </section>
+
+          <!-- ── 9. Self-hosting ── -->
+          <section id="self-hosting">
+            <h2><span class="num">09</span>Self-hosting</h2>
+
+            <h3>Worker mode</h3>
+            <p>
+              Async bulk processing requires a worker, RabbitMQ, and Postgres.
+              The API and worker can run as a single inline process or as
+              separate scaled processes.
+            </p>
+
+            <h4>Inline (single process)</h4>
+            <pre><code># with worker.enable = true in backend_config.toml
+email-validator serve --config ./backend_config.toml</code></pre>
+
+            <h4>Separate processes (recommended for production)</h4>
+            <pre><code># API
+EMAIL_CHECKER__WORKER__ENABLE=false email-validator serve
+
+# Worker (any number of replicas)
+email-validator worker --config ./backend_config.toml</code></pre>
+            <p>
+              Workers consume from the <code>check_email</code> RabbitMQ queue
+              with prefetch = <code>worker.rabbitmq.concurrency</code> (default
+              5). Single-shot RPC checks have higher priority than bulk job
+              tasks. Transient SMTP failures (<code>unknown</code>) are
+              requeued once before being persisted.
+            </p>
+
+            <h3>Postgres schema</h3>
+            <p>
+              <code>src/storage/postgres.ts</code> auto-migrates on startup.
+              Two tables:
+            </p>
+            <ul>
+              <li><code>v1_bulk_job</code> — <code>id</code>, <code>created_at</code>, <code>total_records</code>.</li>
+              <li><code>v1_task_result</code> — <code>id</code>, <code>job_id</code>, <code>created_at</code>, <code>result</code> (jsonb), <code>extra</code> (jsonb), <code>error</code>.</li>
+            </ul>
+            <p>
+              Aggregate progress is computed on the fly — no separate counters
+              to keep in sync.
+            </p>
+
+            <h3>RabbitMQ</h3>
+            <ul>
+              <li>Queue: <code>check_email</code> (durable, priority-aware).</li>
+              <li>Single-shot RPC pattern uses an exclusive reply queue per request.</li>
+              <li>Concurrency knob: <code>worker.rabbitmq.concurrency</code>.</li>
+            </ul>
+
+            <h3>SOCKS5 proxy</h3>
+            <p>
+              When the host blocks port 25 outbound (most clouds do), route
+              SMTP through a SOCKS5 proxy:
+            </p>
+            <pre><code>{
+  "to_email": "someone@example.com",
+  "proxy": {
+    "host": "proxy.local",
+    "port": 1080,
+    "username": "user",
+    "password": "pass",
+    "timeout_ms": 20000
+  },
+  "smtp_port": 25
+}</code></pre>
+            <p>
+              Or use a different port server-side:
+              <code>EMAIL_CHECKER_SMTP_PORT=587</code>.
+            </p>
+
+            <h3>Observability</h3>
+            <ul>
+              <li>Logs are JSON-lines on stdout. Set <code>SMTP_DEBUG=true</code> for verbose SMTP transaction logs.</li>
+              <li>Health probe: <code>GET /health</code>.</li>
+              <li>Queue depth: monitor RabbitMQ's management UI / Prometheus exporter.</li>
+              <li>Job status: query <code>v1_task_result</code> directly or poll <code>GET /v1/bulk/{id}</code>.</li>
+            </ul>
+          </section>
+
+          <!-- ── 10. Architecture ── -->
+          <section id="architecture">
+            <h2><span class="num">10</span>Architecture</h2>
+
+            <h3>Verification pipeline</h3>
+            <p>
+              Orchestrated in <code>src/checker/checkEmail.ts</code>. Each
+              stage may short-circuit the rest.
+            </p>
+
+            <h4>1. Syntax — <code>src/checker/syntax.ts</code></h4>
+            <ul>
+              <li>RFC 5321/5322 validation via <code>isemail</code>.</li>
+              <li>Gmail / Googlemail normalization: dots stripped, <code>+alias</code> removed; canonical form goes into <code>normalized_email</code>.</li>
+              <li>Typo suggestions via Levenshtein distance &lt; 3 against <code>gmail.com</code>, <code>yahoo.com</code>, <code>outlook.com</code>, <code>hotmail.com</code>, <code>protonmail.com</code>, <code>icloud.com</code>, <code>yandex.com</code>.</li>
+            </ul>
+
+            <h4>2. Misc — <code>src/checker/misc.ts</code></h4>
+            <ul>
+              <li>Disposable: union of <code>mailchecker</code> + <code>disposable-email-domains</code> (~96k entries) + a small hardcoded override set. Domain and parent suffixes both checked.</li>
+              <li>Role: lowercased local part looked up in <code>src/data/roles.txt</code> (944 entries).</li>
+              <li>B2C: domain looked up in <code>src/data/b2c.txt</code> (~96,600 entries).</li>
+              <li>Gravatar: optional. MD5 hash + <code>?d=404</code> probe, 6 s timeout.</li>
+              <li>HIBP: optional. v3 API, 10 s timeout. Returns <code>true</code> / <code>false</code> / <code>null</code> on error.</li>
+            </ul>
+
+            <h4>3. MX — <code>src/checker/mx.ts</code></h4>
+            <ul>
+              <li><code>node:dns/promises</code> <code>resolveMx()</code>; sorted by priority ascending.</li>
+              <li>Soft DNS errors (<code>ENODATA</code>, <code>ENOTFOUND</code>, <code>NXDOMAIN</code>, <code>SERVFAIL</code>) yield <code>accepts_mail: false</code> and <code>invalid</code>.</li>
+              <li>Hard DNS errors throw → result becomes <code>unknown</code>.</li>
+            </ul>
+
+            <h4>4. SMTP — <code>src/checker/smtp.ts</code> · <code>smtpParser.ts</code> · <code>provider.ts</code></h4>
+            <ul>
+              <li>Provider detected from MX hostname: <code>gmail</code>, <code>yahoo</code>, <code>hotmailb2c</code>, <code>hotmailb2b</code>, <code>proofpoint</code>, <code>mimecast</code>, <code>everything_else</code>.</li>
+              <li>TCP socket (or SOCKS5 tunnel). Port 465 → TLS automatically.</li>
+              <li>Sequence: <code>220</code> greeting → <code>EHLO</code> → <code>MAIL FROM</code> → optional random RCPT (catch-all probe) → real RCPT → <code>QUIT</code>.</li>
+              <li>Errors classified by <code>smtpParser.ts</code>: invalid mailbox, full inbox, disabled account, blacklisted IP, needs reverse DNS.</li>
+              <li>Retry policy: configurable <code>retries</code> (default 1) on unclassified errors.</li>
+            </ul>
+
+            <h4>5. Reachability — <code>calculateReachable()</code></h4>
+            <p>Evaluated in this order:</p>
+            <table>
+              <thead><tr><th>Verdict</th><th>Condition</th></tr></thead>
+              <tbody>
+                <tr><td><span class="pill unknown">unknown</span></td><td>An SMTP error is present (timeout, blacklist, rDNS, …)</td></tr>
+                <tr><td><span class="pill risky">risky</span></td><td><code>is_disposable</code> · <code>is_role_account</code> · <code>is_catch_all</code> · <code>has_full_inbox</code></td></tr>
+                <tr><td><span class="pill invalid">invalid</span></td><td><code>!is_deliverable</code> · <code>!can_connect_smtp</code> · <code>is_disabled</code></td></tr>
+                <tr><td><span class="pill safe">safe</span></td><td>None of the above</td></tr>
+              </tbody>
+            </table>
+            <p>
+              Syntax failure short-circuits to <code>invalid</code> before the
+              scoring matrix runs.
+            </p>
+
+            <h3>SMTP rules engine</h3>
+            <p>
+              <code>src/data/rules.json</code> stores per-domain and per-MX
+              overrides applied in <code>src/checker/rules.ts</code>:
+            </p>
+            <ul>
+              <li><code>SkipCatchAll</code> — skip the random-address probe (Gmail, Hotmail, Yahoo always accept random RCPTs and would otherwise look catch-all).</li>
+              <li><code>SmtpTimeout45s</code> — bump the SMTP timeout to ≥ 45 s for slow / greylisting servers.</li>
+            </ul>
+
+            <h3>Repository layout</h3>
+            <pre class="light"><code>src/
+  checker/   pipeline (syntax, misc, mx, smtp, scoring, rules, provider)
+  http/      Express routes + auth + CORS
+  worker/    RabbitMQ queue, consumer loop, task service
+  storage/   storage abstraction + Postgres impl (auto-migration)
+  data/      roles.txt, b2c.txt, rules.json (loaded as in-memory Sets)
+  config.ts  TOML + env precedence
+  runtime.ts wires config + storage + throttle + rabbit
+  server.ts  HTTP entrypoint
+bin/email-validator.ts   CLI (serve | worker | check)
+api/index.ts             Vercel wrapper
+public/                  static assets (web UI, docs, openapi.yaml)
+test/                    node:test suite</code></pre>
+          </section>
+
+          <!-- ── 11. Contributing ── -->
+          <section id="contributing">
+            <h2><span class="num">11</span>Contributing</h2>
+            <p>
+              Patches, bug reports, and feature requests welcome. Full guide:
+              <a href="/CONTRIBUTING.md">CONTRIBUTING.md</a>.
+            </p>
+            <pre><code>git clone https://github.com/sagnik11/email-checker.git
+cd email-checker
+npm install
+npm run dev      # tsx-based dev server
+npm test         # node:test runner</code></pre>
+            <p>
+              Tests live in <code>test/</code> and cover syntax, SMTP parser,
+              reachability scoring, config loading, and throttling. New
+              features should land with tests where practical.
+            </p>
+          </section>
+
+          <!-- ── 12. License ── -->
+          <section id="license">
+            <h2><span class="num">12</span>License</h2>
+            <p>
+              <strong>AGPL-3.0-or-later</strong> for open source use, or a
+              commercial license from
+              <a href="https://autter.dev">Autter Pte. Ltd.</a> for proprietary
+              software. See <a href="/LICENSE">LICENSE</a> /
+              <a href="/LICENSE.md">LICENSE.md</a>.
+            </p>
+          </section>
+        </main>
+      </div>
+
+      <!-- ───── Footer ───── -->
+      <footer class="doc-footer">
+        <div>Email Validator · self-hosted · AGPL-3.0 / commercial</div>
+        <div>
+          <a href="https://github.com/sagnik11/email-checker" target="_blank" rel="noopener">GitHub</a>
+          &nbsp;·&nbsp;
+          <a href="https://autter.dev" target="_blank" rel="noopener">Autter</a>
+          &nbsp;·&nbsp;
+          <a href="https://ko-fi.com/sagnikghosh1111" target="_blank" rel="noopener">Ko-fi</a>
+        </div>
+      </footer>
+    </div>
+
+    <script>
+      // ── Sticky TOC active-section highlight ──
+      (function () {
+        const links = Array.from(document.querySelectorAll(".toc a"));
+        const sections = links
+          .map((a) => document.querySelector(a.getAttribute("href")))
+          .filter(Boolean);
+        if (!sections.length) return;
+
+        const byId = new Map(links.map((a) => [a.getAttribute("href").slice(1), a]));
+
+        const observer = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              const link = byId.get(entry.target.id);
+              if (!link) return;
+              if (entry.isIntersecting) {
+                links.forEach((l) => l.classList.remove("active"));
+                link.classList.add("active");
+              }
+            });
+          },
+          { rootMargin: "-30% 0px -60% 0px", threshold: 0 }
+        );
+        sections.forEach((s) => observer.observe(s));
+      })();
+
+      // ── Tabs ──
+      (function () {
+        document.querySelectorAll(".tabs").forEach((tabs) => {
+          const buttons = tabs.querySelectorAll("button");
+          buttons.forEach((btn) => {
+            btn.addEventListener("click", () => {
+              const targetId = btn.getAttribute("data-tab");
+              buttons.forEach((b) => b.classList.toggle("active", b === btn));
+              const panels = tabs.parentElement.querySelectorAll(".tab-panel");
+              panels.forEach((p) =>
+                p.classList.toggle("active", p.id === targetId)
+              );
+            });
+          });
+        });
+      })();
+    </script>
+  </body>
+</html>

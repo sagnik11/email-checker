@@ -42,17 +42,18 @@ test/              — test suite
 
 `POST /v1/check_email`
 
-Returns a structured object with:
+Returns a single flat JSON object — `is_reachable` plus every check detail at the top level. No nested objects. Field groups (all top-level):
 
-| Field | Description |
-|---|---|
-| `input` | The address that was checked |
-| `is_reachable` | Verdict: `safe`, `risky`, `invalid`, or `unknown` |
-| `syntax` | Format validity, parsed username/domain, typo suggestions |
-| `mx` | Whether the domain has working MX records |
-| `smtp` | SMTP handshake result and error classification |
-| `misc` | Disposable, role account, B2C, Gravatar, HaveIBeenPwned |
-| `debug` | Backend name, timing |
+| Group | Fields | Description |
+|---|---|---|
+| Verdict | `input`, `is_reachable` | The address checked and the aggregate verdict (`safe`, `risky`, `invalid`, `unknown`) |
+| Syntax | `email_address`, `email_username`, `email_domain`, `normalized_email`, `is_valid_syntax`, `syntax_suggestion` | Format validity, parsed parts, normalized form, typo suggestion |
+| MX | `mx_accepts_mail`, `mx_records`, `mx_preferred_host`, `mx_preferred_priority`, `mx_lookup_error_type`, `mx_lookup_error_message` | Whether the domain has working MX records and which one was probed |
+| SMTP | `smtp_can_connect`, `smtp_has_full_inbox`, `smtp_is_catch_all`, `smtp_is_deliverable`, `smtp_is_disabled_account`, `smtp_error_type`, `smtp_error_message`, `smtp_error_description` | SMTP handshake result and error classification |
+| Misc | `is_disposable_email`, `is_role_account`, `is_b2c_provider`, `gravatar_url`, `has_been_pwned` | Disposable, role account, B2C, Gravatar, HaveIBeenPwned |
+| Debug | `backend_name`, `check_started_at`, `check_completed_at`, `check_duration_ms`, `check_duration_seconds`, `check_duration_nanos`, `verification_method_type`, `verification_method_host`, `verification_method_smtp_port`, `verification_method_provider`, `verification_method_chosen`, `verification_method_requested`, `verification_method_fallback` | Backend name, timing, verification strategy used |
+
+See [`API_DOCUMENTATION.md`](./API_DOCUMENTATION.md) for the full per-field reference.
 
 ### Bulk Verification
 
@@ -70,10 +71,12 @@ Requires: worker mode + RabbitMQ + Postgres. Submit a list of addresses, poll fo
 
 ### Postgres Persistence
 
-Tables auto-created on startup:
+`src/storage/postgres.ts` auto-migrates two tables on startup (`MIGRATION_SQL`):
 
-- `v1_bulk_job` — job metadata, status, progress
-- `v1_task_result` — individual address results linked to a job
+- `v1_bulk_job` — `id`, `created_at`, `total_records`.
+- `v1_task_result` — `id`, `job_id`, `created_at`, `result` (`jsonb` — the full `CheckEmailResponse`), `extra` (`jsonb` — opaque metadata), `error` (text — populated when a task threw).
+
+Aggregate progress (`safe_count`, `risky_count`, `invalid_count`, `unknown_count`, `total_processed`) is computed on the fly from `v1_task_result` — no separate counter table to keep in sync.
 
 ### Rate Limiting
 
@@ -132,12 +135,25 @@ Orchestrated in `src/checker/checkEmail.ts`. Stages run in order:
 
 ### 5. Reachability Scoring
 
-| Verdict | Conditions |
-|---|---|
-| `invalid` | Syntax failure, no MX, hard SMTP rejection |
-| `risky` | Disposable, role account, catch-all, soft bounce |
-| `safe` | Deliverable, non-risky |
-| `unknown` | Network timeout, greylisting, ambiguous provider response |
+`calculateReachable()` in `src/checker/checkEmail.ts` evaluates verdicts in this order:
+
+| Order | Verdict | Trigger |
+|---|---|---|
+| 1 | `unknown` | An SMTP error is present (timeout, blacklist, rDNS, …) |
+| 2 | `risky`   | `is_disposable` ∨ `is_role_account` ∨ `is_catch_all` ∨ `has_full_inbox` |
+| 3 | `invalid` | `!is_deliverable` ∨ `!can_connect_smtp` ∨ `is_disabled` |
+| 4 | `safe`    | None of the above |
+
+Syntax failure short-circuits to `invalid` before this matrix runs. MX-lookup failures yield `invalid` (soft DNS errors) or `unknown` (hard DNS errors).
+
+### SMTP rules engine
+
+`src/data/rules.json` stores per-domain and per-MX overrides applied in `src/checker/rules.ts`:
+
+- `SkipCatchAll` — skip the random-address probe (Gmail / Hotmail / Yahoo always accept random RCPTs and would otherwise look catch-all).
+- `SmtpTimeout45s` — bump the SMTP timeout to ≥ 45 s for slow / greylisting servers.
+
+Rules can target a domain, an MX hostname, or both. They're loaded into in-memory Sets at startup.
 
 ---
 
@@ -224,6 +240,15 @@ email-validator serve --config ./backend_config.toml
 ```
 
 Use the inline mode for simple self-hosted setups. For high-throughput production use, run API and worker as separate scaled processes.
+
+### Worker scaling
+
+- Workers consume from the `check_email` RabbitMQ queue with prefetch = `worker.rabbitmq.concurrency` (default 5). Increase concurrency for higher throughput per worker.
+- Run as many worker replicas as you need — they share the queue, so adding workers scales horizontally without coordination.
+- Single-shot RPC checks (synchronous `POST /v1/check_email` in worker mode) are published with the highest priority; bulk job tasks use priority 1. The RabbitMQ broker delivers higher priority first.
+- Transient SMTP failures (`unknown`) are requeued once before the result is persisted.
+- Suggested monitoring: queue depth via the RabbitMQ management UI / Prometheus exporter, worker liveness via `GET /health` on each replica, job progress via `GET /v1/bulk/:id` or by querying `v1_task_result` directly.
+- For verbose SMTP transaction logs, set `SMTP_DEBUG=true` on the worker process — every `EHLO` / `MAIL FROM` / `RCPT TO` / `QUIT` is emitted as a JSON line to stdout.
 
 ---
 
