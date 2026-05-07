@@ -3,126 +3,953 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Email Validation Service</title>
+    <title>Email Validator — Verify before you send</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Quattrocento:wght@400;700&family=Quattrocento+Sans:ital,wght@0,400;0,700;1,400&family=Inconsolata:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
     <style>
       :root {
-        --bg: #f3f6f9;
-        --card: #ffffff;
-        --ink: #1d2a35;
-        --accent: #0f7b6c;
-        --muted: #6b7b8c;
+        --paper: #f1ece1;
+        --paper-deep: #e7e0d1;
+        --ink: #0d1219;
+        --ink-soft: #2a3140;
+        --ink-mute: #5a6271;
+        --rule: #0d1219;
+        --accent: #ef9f28;
+        --accent-soft: #ef9f2818;
+        --copper: #c47830;
+        --navy: #1e2d4a;
+        --teal: #00a88a;
+        --teal-bright: #2effd1;
+        --warn: #9a6f06;
+        --safe: #00a88a;
+        --risky: #9a6f06;
+        --invalid: #b3331f;
+        --unknown: #5a5a5a;
+        --serif: "Quattrocento", "Times New Roman", serif;
+        --sans: "Quattrocento Sans", -apple-system, "Segoe UI", sans-serif;
+        --mono: "Inconsolata", ui-monospace, "SF Mono", monospace;
       }
-      body {
+
+      * { box-sizing: border-box; }
+
+      html, body {
         margin: 0;
-        font-family: "Avenir Next", "Segoe UI", sans-serif;
+        background: var(--paper);
         color: var(--ink);
-        background: radial-gradient(circle at 20% 0%, #d2efe9, var(--bg) 45%);
+        font-family: var(--sans);
+        font-size: 15px;
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
       }
-      .wrap {
-        max-width: 920px;
-        margin: 40px auto;
-        padding: 0 16px;
+
+      body {
+        background-image:
+          radial-gradient(1200px 600px at 110% -10%, #e7d8b8 0%, transparent 60%),
+          radial-gradient(900px 500px at -10% 110%, #d8e0d3 0%, transparent 55%);
+        min-height: 100vh;
+        position: relative;
+        overflow-x: hidden;
       }
-      .card {
-        background: var(--card);
-        border-radius: 16px;
-        box-shadow: 0 18px 45px rgba(19, 43, 62, 0.12);
-        padding: 24px;
+
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.08 0 0 0 0 0.10 0 0 0 0 0.11 0 0 0 0.16 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+        opacity: 0.55;
+        mix-blend-mode: multiply;
+        pointer-events: none;
+        z-index: 0;
       }
-      h1 {
-        margin-top: 0;
+
+      .shell {
+        position: relative;
+        z-index: 1;
+        max-width: 1240px;
+        margin: 0 auto;
+        padding: clamp(20px, 3vw, 36px) clamp(20px, 4vw, 56px) 80px;
       }
-      .grid {
-        display: grid;
-        gap: 12px;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+
+      /* ── Top bar ── */
+      .topbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-bottom: 22px;
+        border-bottom: 1px solid var(--rule);
       }
-      label {
+      .mark {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-family: var(--serif);
+        font-size: 22px;
+        letter-spacing: -0.01em;
+      }
+      .mark-dot {
+        width: 12px; height: 12px;
+        background: var(--accent);
+        border-radius: 50%;
+        display: inline-block;
+      }
+      .mark em { font-style: italic; color: var(--ink-soft); font-weight: 400; margin-left: 2px;}
+      .topbar nav {
+        display: flex; gap: 28px;
         font-size: 13px;
-        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
       }
-      input,
-      button {
+      .topbar nav a {
+        color: var(--ink-soft);
+        text-decoration: none;
+        transition: color 160ms;
+      }
+      .topbar nav a:hover { color: var(--accent); }
+
+      /* ── Hero ── */
+      .hero {
+        display: grid;
+        grid-template-columns: 1.15fr 1fr;
+        gap: clamp(28px, 5vw, 80px);
+        padding: clamp(36px, 6vw, 72px) 0 clamp(28px, 4vw, 48px);
+        align-items: end;
+      }
+      .hero-tag {
+        font-family: var(--mono);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        color: var(--accent);
+        margin-bottom: 22px;
+        display: flex; align-items: center; gap: 10px;
+      }
+      .hero-tag::before {
+        content: "";
+        width: 28px; height: 1px;
+        background: var(--accent);
+        display: inline-block;
+      }
+      .hero h1 {
+        font-family: var(--serif);
+        font-weight: 400;
+        font-size: clamp(48px, 7vw, 104px);
+        line-height: 0.95;
+        letter-spacing: -0.025em;
+        margin: 0 0 22px;
+      }
+      .hero h1 i {
+        font-style: italic;
+        color: var(--accent);
+      }
+      .hero-sub {
+        max-width: 46ch;
+        color: var(--ink-soft);
+        font-size: clamp(15px, 1.2vw, 17px);
+        line-height: 1.55;
+      }
+      .hero-meta {
+        align-self: end;
+        display: grid;
+        gap: 18px;
+      }
+      .meta-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 24px;
+        padding: 14px 0;
+        border-top: 1px solid #1a1f2322;
+        font-size: 13px;
+      }
+      .meta-row:last-child { border-bottom: 1px solid #1a1f2322; }
+      .meta-row span:first-child {
+        font-family: var(--mono);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--ink-mute);
+        font-size: 11px;
+      }
+      .meta-row span:last-child {
+        font-family: var(--serif);
+        font-style: italic;
+        font-size: 17px;
+      }
+
+      /* ── Console ── */
+      .console {
+        display: grid;
+        grid-template-columns: 1fr 1.2fr;
+        gap: 0;
+        background: var(--ink);
+        color: #ece6d6;
+        border-radius: 4px;
+        overflow: hidden;
+        margin-top: 28px;
+        box-shadow:
+          0 1px 0 #00000020,
+          0 30px 60px -20px rgba(22, 26, 29, 0.35);
+      }
+
+      .console-form {
+        padding: 38px clamp(28px, 3vw, 44px) 36px;
+        background: linear-gradient(180deg, #1e2d4a 0%, #0d1219 100%);
+        position: relative;
+      }
+      .console-form::after {
+        content: "";
+        position: absolute;
+        right: 0; top: 24px; bottom: 24px;
+        width: 1px;
+        background: #ffffff15;
+      }
+
+      .form-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        margin-bottom: 28px;
+        padding-bottom: 18px;
+        border-bottom: 1px dashed #ffffff20;
+      }
+      .form-head h2 {
+        font-family: var(--serif);
+        font-weight: 400;
+        font-size: 26px;
+        margin: 0;
+        letter-spacing: -0.01em;
+      }
+      .form-head h2 i { font-style: italic; color: #ef9f28; }
+      .endpoint {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: #a8a092;
+        background: #ffffff0a;
+        padding: 4px 8px;
+        border-radius: 3px;
+        border: 1px solid #ffffff14;
+      }
+      .endpoint b { color: #ef9f28; font-weight: 500; }
+
+      .field-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px 22px;
+      }
+      .field { display: flex; flex-direction: column; gap: 6px; }
+      .field.full { grid-column: 1 / -1; }
+      .field label {
+        font-family: var(--mono);
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        color: #a8a092;
+      }
+      .field label b { color: #ef9f28; font-weight: 500; margin-left: 4px; }
+      .field input {
+        background: transparent;
+        border: 0;
+        border-bottom: 1px solid #ffffff28;
+        padding: 8px 0 9px;
+        color: #f3ede0;
+        font-family: var(--sans);
+        font-size: 16px;
+        outline: none;
+        transition: border-color 160ms;
+      }
+      .field input::placeholder { color: #ffffff32; }
+      .field input:focus {
+        border-bottom-color: #ef9f28;
+      }
+
+      .submit {
+        margin-top: 30px;
         width: 100%;
-        box-sizing: border-box;
-        border-radius: 10px;
-        border: 1px solid #d5dee8;
-        padding: 10px 12px;
+        background: var(--paper);
+        color: var(--ink);
+        border: 0;
+        padding: 18px 22px;
+        font-family: var(--sans);
+        font-weight: 500;
+        font-size: 14px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1), background 200ms;
+        position: relative;
+      }
+      .submit:hover { background: #fff8e8; }
+      .submit:active { transform: translateY(1px); }
+      .submit .arrow {
+        font-family: var(--serif);
+        font-style: italic;
+        font-size: 22px;
+        text-transform: none;
+        letter-spacing: 0;
+      }
+      .submit[disabled] { opacity: 0.6; cursor: progress; }
+
+      /* ── Results ── */
+      .results {
+        padding: 38px clamp(28px, 3vw, 44px) 36px;
+        display: flex;
+        flex-direction: column;
+        min-height: 480px;
+        background:
+          repeating-linear-gradient(
+            90deg,
+            transparent 0 39px,
+            #ffffff05 39px 40px
+          ),
+          var(--ink);
+      }
+      .results-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        padding-bottom: 18px;
+        margin-bottom: 22px;
+        border-bottom: 1px dashed #ffffff20;
+      }
+      .results-head .label {
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: #a8a092;
+      }
+      .results-head .timestamp {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: #6e6a5e;
+      }
+
+      .verdict {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 18px 0 26px;
+      }
+      .verdict-state {
+        font-family: var(--serif);
+        font-style: italic;
+        font-size: clamp(48px, 5vw, 72px);
+        line-height: 1;
+        letter-spacing: -0.02em;
+      }
+      .verdict-state[data-state="idle"] { color: #4a4d50; }
+      .verdict-state[data-state="loading"] { color: #ef9f28; }
+      .verdict-state[data-state="safe"] { color: #2effd1; }
+      .verdict-state[data-state="risky"] { color: #ef9f28; }
+      .verdict-state[data-state="invalid"] { color: #e87c7c; }
+      .verdict-state[data-state="unknown"] { color: #c0bca8; }
+      .verdict-target {
+        font-family: var(--mono);
+        font-size: 13px;
+        color: #a8a092;
+        word-break: break-all;
+      }
+
+      .checks {
+        display: grid;
+        gap: 1px;
+        background: #ffffff14;
+        border-top: 1px solid #ffffff14;
+        border-bottom: 1px solid #ffffff14;
+        margin-bottom: 18px;
+      }
+      .check {
+        display: grid;
+        grid-template-columns: 22px 1fr auto;
+        align-items: center;
+        gap: 14px;
+        padding: 13px 2px;
+        background: var(--ink);
         font-size: 14px;
       }
-      button {
-        border: none;
-        background: var(--accent);
-        color: white;
-        font-weight: 700;
-        cursor: pointer;
+      .check .pill {
+        width: 10px; height: 10px;
+        border-radius: 50%;
+        background: #4a4d50;
+        margin-left: 6px;
       }
-      pre {
-        background: #12202f;
-        color: #dbe8f6;
+      .check[data-status="pass"] .pill { background: #2effd1; box-shadow: 0 0 0 4px #2effd122; }
+      .check[data-status="warn"] .pill { background: #ef9f28; box-shadow: 0 0 0 4px #ef9f2822; }
+      .check[data-status="fail"] .pill { background: #e87c7c; box-shadow: 0 0 0 4px #e87c7c22; }
+      .check .name {
+        color: #ece6d6;
+        font-family: var(--sans);
+      }
+      .check .value {
+        font-family: var(--mono);
+        font-size: 12px;
+        color: #a8a092;
+      }
+
+      .raw-toggle {
+        font-family: var(--mono);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        background: transparent;
+        border: 0;
+        color: #a8a092;
+        cursor: pointer;
+        padding: 8px 0;
+        text-align: left;
+        transition: color 160ms;
+      }
+      .raw-toggle:hover { color: #ef9f28; }
+      .raw-toggle::before { content: "[+] "; color: #ef9f28; }
+      .raw-toggle.open::before { content: "[−] "; }
+
+      .raw {
+        display: none;
+        font-family: var(--mono);
+        font-size: 12px;
+        line-height: 1.6;
+        background: #0d1013;
+        color: #b8b1a0;
         padding: 16px;
-        border-radius: 12px;
+        border-radius: 3px;
         overflow: auto;
-        max-height: 420px;
+        max-height: 280px;
+        margin-top: 8px;
+        white-space: pre-wrap;
+        border: 1px solid #ffffff10;
+      }
+      .raw.open { display: block; }
+
+      /* ── Below-fold pillars ── */
+      .pillars {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 0;
+        margin-top: clamp(60px, 7vw, 96px);
+        padding-top: 32px;
+        border-top: 1px solid var(--rule);
+      }
+      .pillar {
+        padding: 8px 28px 0 28px;
+        border-right: 1px solid #1a1f2322;
+      }
+      .pillar:first-child { padding-left: 0; }
+      .pillar:last-child { border-right: 0; padding-right: 0; }
+      .pillar .num {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--ink-mute);
+        letter-spacing: 0.16em;
+      }
+      .pillar h3 {
+        font-family: var(--serif);
+        font-weight: 400;
+        font-size: 28px;
+        line-height: 1.05;
+        margin: 18px 0 10px;
+        letter-spacing: -0.01em;
+      }
+      .pillar h3 i { font-style: italic; color: var(--accent); }
+      .pillar p {
+        color: var(--ink-soft);
+        margin: 0;
+        font-size: 14px;
+        line-height: 1.55;
+      }
+
+      /* ── Footer ── */
+      .foot {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: center;
+        gap: 32px;
+        margin-top: clamp(60px, 8vw, 110px);
+        padding-top: 28px;
+        border-top: 1px solid var(--rule);
+        font-size: 13px;
+        color: var(--ink-soft);
+      }
+      .foot-left { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-mute);}
+      .foot-right { display: flex; justify-content: flex-end; gap: 16px; align-items: center; }
+      .foot-right a {
+        color: var(--ink);
+        text-decoration: none;
+        font-family: var(--mono);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        border-bottom: 1px solid transparent;
+        transition: border-color 160ms;
+      }
+      .foot-right a:hover { border-bottom-color: var(--accent); }
+      .kofi {
+        background: var(--accent);
+        color: var(--paper) !important;
+        padding: 10px 14px;
+        border-radius: 999px;
+        border-bottom: 0 !important;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .kofi:hover { background: #c47830; }
+
+      .sponsor {
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        align-items: center;
+      }
+      .sponsor span {
+        font-family: var(--mono);
+        font-size: 9.5px;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: var(--ink-mute);
+      }
+      .sponsor a {
+        display: inline-flex;
+        align-items: center;
+        padding: 6px 14px;
+        background: var(--ink);
+        border-radius: 999px;
+        transition: transform 200ms;
+      }
+      .sponsor a:hover { transform: translateY(-2px) rotate(-1deg); box-shadow: 0 8px 24px -8px #161a1d40; }
+      .sponsor img {
+        height: 48px;
+        display: block;
+      }
+
+      /* ── Delight ── */
+      @keyframes pulseDot {
+        0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 #ef9f2855; }
+        50% { transform: scale(1.18); box-shadow: 0 0 0 8px #ef9f2800; }
+      }
+      .mark-dot { animation: pulseDot 2.4s ease-in-out infinite; }
+
+      .tries { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+      .try-label {
+        font-family: var(--mono); font-size: 9.5px;
+        text-transform: uppercase; letter-spacing: 0.16em;
+        color: #6e6a5e; margin-top: 18px; margin-bottom: 6px;
+      }
+      .try-chip {
+        font-family: var(--mono); font-size: 11px;
+        background: #ffffff08; color: #c9c2b3;
+        border: 1px solid #ffffff14;
+        padding: 5px 9px; border-radius: 999px;
+        cursor: pointer;
+        transition: all 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+      }
+      .try-chip:hover {
+        background: #ef9f2820; color: #f3ede0;
+        border-color: #ef9f2870; transform: translateY(-1px);
+      }
+      .try-chip span { color: #6e6a5e; font-style: italic; margin-right: 4px; }
+
+      .verdict-row { display: flex; align-items: center; gap: 22px; }
+      .verdict-face {
+        font-family: var(--serif); font-style: italic;
+        font-size: clamp(56px, 6vw, 84px); line-height: 1;
+        color: #4a4d50;
+        transition: color 240ms;
+        user-select: none; flex-shrink: 0;
+        width: 1.05em; text-align: center;
+      }
+      .verdict-face.is-loading { color: #ef9f28; animation: spin 1.6s linear infinite; }
+      .verdict-face[data-state="safe"]    { color: #2effd1; transform: rotate(-6deg); }
+      .verdict-face[data-state="risky"]   { color: #ef9f28; transform: rotate(4deg); }
+      .verdict-face[data-state="invalid"] { color: #e87c7c; transform: rotate(-4deg); }
+      .verdict-face[data-state="unknown"] { color: #c0bca8; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      .submit .arrow { display: inline-block; transition: transform 280ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+      .submit:hover .arrow { transform: translateX(6px); }
+
+      .pillar { transition: transform 280ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+      .pillar:hover { transform: translateY(-2px); }
+      .pillar h3 i {
+        display: inline-block;
+        transition: transform 320ms cubic-bezier(0.34, 1.5, 0.64, 1);
+        transform-origin: 50% 80%;
+      }
+      .pillar:hover h3 i { transform: rotate(-3deg) translateY(-2px); }
+      .pillar .num { transition: color 200ms, letter-spacing 240ms ease-out; }
+      .pillar:hover .num { color: var(--accent); letter-spacing: 0.28em; }
+
+      .kofi-cup {
+        display: inline-block;
+        transform-origin: 50% 90%;
+        transition: transform 280ms cubic-bezier(0.34, 1.6, 0.64, 1);
+      }
+      .kofi:hover .kofi-cup { animation: steam 0.9s ease-in-out infinite; }
+      @keyframes steam {
+        0%, 100% { transform: rotate(-10deg) translateY(0); }
+        50% { transform: rotate(10deg) translateY(-2px); }
+      }
+
+      .confetti-canvas {
+        position: fixed; inset: 0;
+        pointer-events: none; z-index: 99;
+      }
+
+      .loading-msg {
+        font-family: var(--mono); font-size: 11px;
+        color: #ef9f28; min-height: 14px;
+        margin-top: 8px;
+        opacity: 0; transform: translateY(4px);
+        transition: opacity 220ms, transform 220ms;
+      }
+      .loading-msg.show { opacity: 1; transform: translateY(0); }
+
+      .hero h1 i { cursor: pointer; display: inline-block; }
+      .hero h1 i:hover { animation: wink 700ms ease-in-out; }
+      @keyframes wink {
+        0%, 100% { transform: scaleY(1) translateY(0); }
+        45% { transform: scaleY(0.15) translateY(0); }
+        70% { transform: scaleY(1) translateY(-3px); }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after {
+          animation-duration: 0.01ms !important;
+          transition-duration: 0.01ms !important;
+        }
+      }
+
+      @media (max-width: 880px) {
+        .hero { grid-template-columns: 1fr; gap: 32px; }
+        .console { grid-template-columns: 1fr; }
+        .console-form::after { display: none; }
+        .pillars { grid-template-columns: 1fr 1fr; gap: 28px 0; }
+        .pillar { border-right: 0; padding: 8px 0 0 0; }
+        .pillar:nth-child(odd) { border-right: 1px solid #1a1f2322; padding-right: 24px; }
+        .pillar:nth-child(even) { padding-left: 24px; }
+        .foot { grid-template-columns: 1fr; text-align: center;}
+        .foot-right { justify-content: center; flex-wrap: wrap;}
+        .field-grid { grid-template-columns: 1fr; }
+      }
+      @media (max-width: 520px) {
+        .topbar nav { display: none; }
+        .pillars { grid-template-columns: 1fr; }
+        .pillar { border-right: 0 !important; padding-right: 0 !important; padding-bottom: 16px; border-bottom: 1px solid #1a1f2322; }
       }
     </style>
   </head>
   <body>
-    <div class="wrap">
-      <div class="card">
-        <h1>Email Validation Service</h1>
-        <p>Runs <code>POST /v1/check_email</code>.</p>
-        <div class="grid">
-          <div>
-            <label>Email</label>
-            <input id="to_email" placeholder="someone@gmail.com" />
-          </div>
-          <div>
-            <label>From Email</label>
-            <input id="from_email" value="noreply@example.com" />
-          </div>
-          <div>
-            <label>Hello Name</label>
-            <input id="hello_name" value="example.com" />
-          </div>
-          <div>
-            <label>SMTP Port</label>
-            <input id="smtp_port" value="25" title="Server default loaded on page start" />
-          </div>
+    <div class="shell">
+      <header class="topbar">
+        <div class="mark">
+          <span class="mark-dot"></span>
+          Email Validator <em>/ v1</em>
         </div>
-        <div style="margin-top: 16px">
-          <button id="runBtn">Check Email</button>
+        <nav>
+          <a href="https://github.com/sagnik11/check-if-email-exists-master" target="_blank" rel="noopener">GitHub</a>
+          <a href="/health">Status</a>
+          <a href="https://autter.dev" target="_blank" rel="noopener">Autter</a>
+        </nav>
+      </header>
+
+      <section class="hero">
+        <div>
+          <div class="hero-tag">Protocol-level email verification</div>
+          <h1>
+            Verify before<br />
+            you <i>send.</i>
+          </h1>
+          <p class="hero-sub">
+            Syntax, MX records, and a live SMTP handshake — all without sending a
+            single message. Catch typos, disposable mailboxes, and dead addresses
+            before they hit your reputation.
+          </p>
         </div>
-      </div>
-      <div class="card" style="margin-top: 16px">
-        <h3>Response</h3>
-        <pre id="output">{}</pre>
-      </div>
+        <div class="hero-meta">
+          <div class="meta-row"><span>Method</span><span>Live SMTP RCPT TO</span></div>
+          <div class="meta-row"><span>Latency</span><span>~ 1.2s typical</span></div>
+          <div class="meta-row"><span>Privacy</span><span>nothing leaves your server</span></div>
+          <div class="meta-row"><span>License</span><span>AGPL-3.0 · open source</span></div>
+        </div>
+      </section>
+
+      <section class="console">
+        <div class="console-form">
+          <div class="form-head">
+            <h2>Run a <i>check</i></h2>
+            <div class="endpoint">POST <b>/v1/check_email</b></div>
+          </div>
+          <form id="form" autocomplete="off">
+            <div class="field-grid">
+              <div class="field full">
+                <label>Email <b>*</b></label>
+                <input id="to_email" type="email" placeholder="someone@gmail.com" required />
+                <div class="try-label">Try one →</div>
+                <div class="tries" id="tries">
+                  <button type="button" class="try-chip" data-email="hello@autter.dev"><span>real</span>hello@autter.dev</button>
+                  <button type="button" class="try-chip" data-email="this.mailbox.does.not.exist@gmail.com"><span>dead</span>this.mailbox…@gmail.com</button>
+                  <button type="button" class="try-chip" data-email="user@10minutemail.com"><span>burner</span>user@10minutemail.com</button>
+                  <button type="button" class="try-chip" data-email="info@whitehouse.gov"><span>role</span>info@whitehouse.gov</button>
+                  <button type="button" class="try-chip" data-email="someone@gmial.com"><span>typo</span>someone@gmial.com</button>
+                </div>
+              </div>
+              <div class="field">
+                <label>From Email</label>
+                <input id="from_email" value="noreply@example.com" />
+              </div>
+              <div class="field">
+                <label>Hello Name</label>
+                <input id="hello_name" value="example.com" />
+              </div>
+              <div class="field full">
+                <label>SMTP Port</label>
+                <input id="smtp_port" value="25" />
+              </div>
+            </div>
+            <button class="submit" type="submit" id="runBtn">
+              <span>Run check</span>
+              <span class="arrow">→</span>
+            </button>
+          </form>
+        </div>
+
+        <div class="results">
+          <div class="results-head">
+            <span class="label">Verdict</span>
+            <span class="timestamp" id="ts">awaiting input</span>
+          </div>
+          <div class="verdict">
+            <div class="verdict-row">
+              <div class="verdict-face" id="face" data-state="idle">?</div>
+              <div>
+                <div class="verdict-state" id="state" data-state="idle">idle.</div>
+                <div class="verdict-target" id="target">— enter an address to begin —</div>
+              </div>
+            </div>
+            <div class="loading-msg" id="loadingMsg"></div>
+          </div>
+          <div class="checks" id="checks">
+            <div class="check" data-status="idle"><span class="pill"></span><span class="name">Syntax</span><span class="value">—</span></div>
+            <div class="check" data-status="idle"><span class="pill"></span><span class="name">MX records</span><span class="value">—</span></div>
+            <div class="check" data-status="idle"><span class="pill"></span><span class="name">SMTP handshake</span><span class="value">—</span></div>
+            <div class="check" data-status="idle"><span class="pill"></span><span class="name">Disposable</span><span class="value">—</span></div>
+            <div class="check" data-status="idle"><span class="pill"></span><span class="name">Role account</span><span class="value">—</span></div>
+            <div class="check" data-status="idle"><span class="pill"></span><span class="name">B2C provider</span><span class="value">—</span></div>
+          </div>
+          <button class="raw-toggle" id="rawToggle" type="button">View raw response</button>
+          <pre class="raw" id="output">{}</pre>
+        </div>
+      </section>
+
+      <section class="pillars">
+        <div class="pillar">
+          <div class="num">01</div>
+          <h3>Syntax & <i>typos</i></h3>
+          <p>RFC-compliant parsing with suggestions for common typos like <code>gmial.com</code>.</p>
+        </div>
+        <div class="pillar">
+          <div class="num">02</div>
+          <h3>MX <i>lookup</i></h3>
+          <p>Confirm the domain actually accepts mail before opening any socket.</p>
+        </div>
+        <div class="pillar">
+          <div class="num">03</div>
+          <h3>SMTP <i>handshake</i></h3>
+          <p>Speak the protocol directly — verify the mailbox without delivering anything.</p>
+        </div>
+        <div class="pillar">
+          <div class="num">04</div>
+          <h3>Disposable <i>flags</i></h3>
+          <p>Catch throwaway domains, role accounts, and consumer providers in one pass.</p>
+        </div>
+      </section>
+
+      <footer class="foot">
+        <div class="foot-left">© Email Validator · self-hosted</div>
+        <div class="sponsor">
+          <span>— Sponsored by —</span>
+          <a href="https://autter.dev" target="_blank" rel="noopener">
+            <img src="https://www.autter.dev/logo-dark.png" alt="Autter" />
+          </a>
+        </div>
+        <div class="foot-right">
+          <a href="https://github.com/sagnik11/check-if-email-exists-master" target="_blank" rel="noopener">Source</a>
+          <a href="https://ko-fi.com/sagnikghosh1111" target="_blank" rel="noopener" class="kofi"><span class="kofi-cup">☕</span> Support on Ko-fi</a>
+        </div>
+      </footer>
     </div>
 
     <script>
+      const form = document.getElementById("form");
       const btn = document.getElementById("runBtn");
       const output = document.getElementById("output");
+      const stateEl = document.getElementById("state");
+      const faceEl = document.getElementById("face");
+      const targetEl = document.getElementById("target");
+      const tsEl = document.getElementById("ts");
+      const checksEl = document.getElementById("checks");
+      const rawToggle = document.getElementById("rawToggle");
       const smtpPortInput = document.getElementById("smtp_port");
+      const emailInput = document.getElementById("to_email");
+      const loadingMsgEl = document.getElementById("loadingMsg");
 
-      // Load server-configured SMTP port so env overrides are reflected in the UI
+      // Try-me chips
+      document.querySelectorAll(".try-chip").forEach((chip) => {
+        chip.addEventListener("click", () => {
+          emailInput.value = chip.dataset.email;
+          emailInput.focus();
+        });
+      });
+
+      // Console easter egg
+      console.log(
+        "%c email validator %c v1 ",
+        "background:#161a1d;color:#f1ece1;padding:4px 8px;font:600 12px sans-serif;border-radius:3px 0 0 3px;",
+        "background:#ef9f28;color:#0d1219;padding:4px 8px;font:600 12px sans-serif;border-radius:0 3px 3px 0;"
+      );
+      console.log(
+        "%cPoking around the source? Nice. We like you.\nIf protocol-level work is your thing → autter.dev",
+        "color:#3a4046;font:14px serif;font-style:italic;"
+      );
+
+      // Rotating loading messages — specific to what the validator actually does
+      const LOADING_MSGS = [
+        "resolving MX records…",
+        "opening socket on port 25…",
+        "saying HELO…",
+        "MAIL FROM accepted…",
+        "RCPT TO awaiting reply…",
+        "checking against disposable list…",
+        "scoring reachability…",
+      ];
+      let msgTimer = null;
+      function startLoadingMsgs() {
+        let i = 0;
+        const tick = () => {
+          loadingMsgEl.classList.remove("show");
+          setTimeout(() => {
+            loadingMsgEl.textContent = "› " + LOADING_MSGS[i % LOADING_MSGS.length];
+            loadingMsgEl.classList.add("show");
+            i++;
+          }, 180);
+        };
+        tick();
+        msgTimer = setInterval(tick, 900);
+      }
+      function stopLoadingMsgs() {
+        clearInterval(msgTimer);
+        msgTimer = null;
+        loadingMsgEl.classList.remove("show");
+      }
+
+      // Tiny confetti for "safe" verdicts — pure canvas, no deps
+      function celebrate() {
+        const canvas = document.createElement("canvas");
+        canvas.className = "confetti-canvas";
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        document.body.appendChild(canvas);
+        const ctx = canvas.getContext("2d");
+        const colors = ["#2effd1", "#00a88a", "#ef9f28", "#c47830", "#1e2d4a", "#f1ece1"];
+        const pieces = Array.from({ length: 80 }, () => ({
+          x: canvas.width / 2 + (Math.random() - 0.5) * 200,
+          y: canvas.height / 2,
+          vx: (Math.random() - 0.5) * 16,
+          vy: -Math.random() * 14 - 6,
+          g: 0.45 + Math.random() * 0.2,
+          r: 3 + Math.random() * 4,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          rot: Math.random() * Math.PI,
+          vr: (Math.random() - 0.5) * 0.3,
+          life: 0,
+        }));
+        const start = performance.now();
+        function frame(t) {
+          const elapsed = t - start;
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          for (const p of pieces) {
+            p.vy += p.g;
+            p.x += p.vx;
+            p.y += p.vy;
+            p.rot += p.vr;
+            ctx.save();
+            ctx.translate(p.x, p.y);
+            ctx.rotate(p.rot);
+            ctx.fillStyle = p.color;
+            ctx.fillRect(-p.r, -p.r * 0.4, p.r * 2, p.r * 0.8);
+            ctx.restore();
+          }
+          if (elapsed < 2400) requestAnimationFrame(frame);
+          else canvas.remove();
+        }
+        requestAnimationFrame(frame);
+      }
+
+      const FACE_MAP = {
+        idle: "?",
+        loading: "~",
+        safe: "✓",
+        risky: "!",
+        invalid: "✕",
+        unknown: "?",
+      };
+
       fetch("/version")
         .then((r) => r.json())
-        .then((v) => {
-          if (v && v.smtp_port) {
-            smtpPortInput.value = v.smtp_port;
-          }
-        })
+        .then((v) => { if (v && v.smtp_port) smtpPortInput.value = v.smtp_port; })
         .catch(() => {});
 
-      btn.addEventListener("click", async () => {
+      rawToggle.addEventListener("click", () => {
+        output.classList.toggle("open");
+        rawToggle.classList.toggle("open");
+      });
+
+      function setState(state, label) {
+        stateEl.dataset.state = state;
+        stateEl.textContent = label;
+        faceEl.dataset.state = state;
+        faceEl.textContent = FACE_MAP[state] || "?";
+        faceEl.classList.toggle("is-loading", state === "loading");
+      }
+
+      function updateCheck(idx, status, value) {
+        const node = checksEl.children[idx];
+        if (!node) return;
+        node.dataset.status = status;
+        node.querySelector(".value").textContent = value;
+      }
+
+      function resetChecks() {
+        for (let i = 0; i < checksEl.children.length; i++) {
+          updateCheck(i, "idle", "—");
+        }
+      }
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const to_email = document.getElementById("to_email").value.trim();
+        if (!to_email) return;
+
         const payload = {
-          to_email: document.getElementById("to_email").value,
+          to_email,
           from_email: document.getElementById("from_email").value || undefined,
           hello_name: document.getElementById("hello_name").value || undefined,
           smtp_port: Number(document.getElementById("smtp_port").value || 25),
         };
 
+        btn.disabled = true;
+        setState("loading", "checking…");
+        targetEl.textContent = to_email;
+        tsEl.textContent = "in flight · " + new Date().toLocaleTimeString();
+        resetChecks();
+        startLoadingMsgs();
+
+        const t0 = performance.now();
         try {
           const res = await fetch("/v1/check_email", {
             method: "POST",
@@ -130,9 +957,65 @@
             body: JSON.stringify(payload),
           });
           const body = await res.json();
+          const dt = Math.round(performance.now() - t0);
           output.textContent = JSON.stringify(body, null, 2);
+
+          const reach = body.is_reachable || "unknown";
+          const labelMap = {
+            safe: "safe.",
+            risky: "risky.",
+            invalid: "invalid.",
+            unknown: "unknown.",
+          };
+          setState(reach, labelMap[reach] || "unknown.");
+          tsEl.textContent = `${dt}ms · ${new Date().toLocaleTimeString()}`;
+          stopLoadingMsgs();
+          if (reach === "safe" && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+            celebrate();
+          }
+
+          // Syntax
+          const syn = body.syntax || {};
+          updateCheck(0,
+            syn.is_valid_syntax ? "pass" : "fail",
+            syn.is_valid_syntax ? `${syn.username || ""}@${syn.domain || ""}` : "invalid format"
+          );
+          // MX
+          const mx = body.mx || {};
+          updateCheck(1,
+            mx.accepts_mail ? "pass" : "fail",
+            mx.accepts_mail ? `${(mx.records || []).length || "1+"} record(s)` : "no records"
+          );
+          // SMTP
+          const smtp = body.smtp || {};
+          let smtpStatus = "warn", smtpVal = "indeterminate";
+          if (smtp.is_deliverable) { smtpStatus = "pass"; smtpVal = "deliverable"; }
+          else if (smtp.is_disabled) { smtpStatus = "fail"; smtpVal = "mailbox disabled"; }
+          else if (smtp.can_connect_smtp === false) { smtpStatus = "fail"; smtpVal = "no connection"; }
+          else if (smtp.has_full_inbox) { smtpStatus = "warn"; smtpVal = "inbox full"; }
+          else if (smtp.is_catch_all) { smtpStatus = "warn"; smtpVal = "catch-all"; }
+          updateCheck(2, smtpStatus, smtpVal);
+          // misc
+          const misc = body.misc || {};
+          updateCheck(3,
+            misc.is_disposable ? "fail" : "pass",
+            misc.is_disposable ? "disposable" : "permanent"
+          );
+          updateCheck(4,
+            misc.is_role_account ? "warn" : "pass",
+            misc.is_role_account ? "role account" : "individual"
+          );
+          updateCheck(5,
+            misc.is_b2c ? "warn" : "pass",
+            misc.is_b2c ? "consumer provider" : "business domain"
+          );
         } catch (err) {
           output.textContent = String(err);
+          setState("invalid", "error.");
+          tsEl.textContent = "request failed";
+          stopLoadingMsgs();
+        } finally {
+          btn.disabled = false;
         }
       });
     </script>
