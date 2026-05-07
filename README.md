@@ -252,3 +252,4 @@ See [`LICENSE.md`](./LICENSE.md) for full details.
 ## Acknowledgements
 
 Sponsored by **[Autter](https://autter.dev)**.
+> <a href="https://autter.dev"><picture><source media="(prefers-color-scheme: dark)" srcset="https://autter.dev/wordmark-light.png"><img src="https://autter.dev/logo-light.png" alt="Autter" height="48" /></picture></a>
