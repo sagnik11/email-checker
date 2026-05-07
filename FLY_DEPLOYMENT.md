@@ -83,8 +83,11 @@ flyctl scale memory 512 --app <your-app-name>
 ## Step 4 — Verify
 
 ```bash
-# Health check
+# Liveness check (process up)
 curl -sS https://<your-app-name>.fly.dev/health
+
+# Readiness check (Postgres + RabbitMQ reachable)
+curl -sS https://<your-app-name>.fly.dev/ready
 
 # Version
 curl -sS https://<your-app-name>.fly.dev/version
