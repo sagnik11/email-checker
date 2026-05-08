@@ -98,7 +98,12 @@ Implemented.
 
 ---
 
-### 1.3 CSV Export Compatibility Fix
+### 1.3 CSV Export Compatibility Fix ✅
+
+**Status**: Done. `mapResultToCsvRow` in `src/http/app.ts` now reads the flat
+schema produced by `buildResult` in `src/checker/checkEmail.ts`. Per-verdict
+unit tests live in `test/csv-export.test.ts`. CSV columns are documented in
+`API_DOCUMENTATION.md` and `public/openapi.yaml`.
 
 **Goal**  
 Ensure bulk CSV export reflects the current flat result object.

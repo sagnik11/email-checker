@@ -364,7 +364,16 @@ paths:
             text/csv:
               schema:
                 type: string
-                description: CSV with header row, one row per checked address.
+                description: |
+                  CSV with header row, one row per checked address. Columns mirror
+                  the flat JSON response fields:
+                  `input`, `is_reachable`, `email_address`, `email_username`,
+                  `email_domain`, `is_valid_syntax`, `is_disposable_email`,
+                  `is_role_account`, `is_b2c_provider`, `gravatar_url`,
+                  `mx_accepts_mail`, `mx_preferred_host`, `smtp_can_connect`,
+                  `smtp_has_full_inbox`, `smtp_is_catch_all`,
+                  `smtp_is_deliverable`, `smtp_is_disabled_account`, `error`.
+                  See API_DOCUMENTATION.md → "CSV columns" for details.
         "400":
           description: Job not found, or job still running
           content:

@@ -84,7 +84,7 @@ Most teams reach for ZeroBounce, NeverBounce, or similar SaaS tools by default. 
 - **CLI** — `email-validator check someone@gmail.com` from your terminal
 - **Web UI** — browser-based quick-check page served at `/`
 - **Queue worker** — RabbitMQ-backed async processing for large lists
-- **Bulk jobs** — submit thousands of addresses, poll for progress, export JSON or CSV
+- **Bulk jobs** — submit thousands of addresses, poll for progress, export JSON or CSV (CSV columns mirror the flat JSON fields)
 - **Postgres persistence** — bulk job tracking and result retrieval
 - **Rate limiting** — configurable per-second / minute / hour / day throttling
 - **SOCKS5 proxy support** — route SMTP connections through a proxy
