@@ -109,9 +109,46 @@ function isNeedsRdnsError(message) {
   return containsAny(e, ["cannot find your reverse hostname", "reverse dns entry"]);
 }
 
+const GREYLIST_PHRASES = [
+  "greylist",
+  "grey list",
+  "grey-listed",
+  "graylist",
+  "try again",
+  "try later",
+  "please retry",
+  "please try later",
+  "temporarily deferred",
+  "temporary failure",
+  "temporary local problem",
+  "temporarily unavailable",
+  "deferred",
+  "4.7.1",
+  "4.2.1",
+  "4.2.0",
+];
+
+function isGreylistError(code, message) {
+  const numCode = Number(code);
+  const text = String(message || "").toLowerCase();
+
+  if (![421, 450, 451, 452].includes(numCode)) {
+    return false;
+  }
+
+  // 421 with a clean "service not available / try again" message is the
+  // classic greylist signal; allow it through even with no phrase match.
+  if (numCode === 421 && !isIpBlacklistedError(text) && !isNeedsRdnsError(text)) {
+    return true;
+  }
+
+  return containsAny(text, GREYLIST_PHRASES);
+}
+
 module.exports = {
   isDisabledAccountError,
   isFullInboxError,
+  isGreylistError,
   isInvalidError,
   isIpBlacklistedError,
   isNeedsRdnsError,

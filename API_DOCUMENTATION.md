@@ -175,10 +175,12 @@ The response is a single flat object. All check details sit at the top level nex
 {
   "input": "someone@gmail.com",
   "is_reachable": "safe",
+  "risk_score": 0,
 
   "email_address": "someone@gmail.com",
   "email_username": "someone",
   "email_domain": "gmail.com",
+  "email_domain_unicode": "gmail.com",
   "normalized_email": "someone@gmail.com",
   "is_valid_syntax": true,
   "syntax_suggestion": null,
@@ -188,6 +190,9 @@ The response is a single flat object. All check details sit at the top level nex
   "is_b2c_provider": true,
   "gravatar_url": null,
   "has_been_pwned": null,
+  "spf_present": true,
+  "dmarc_policy": "reject",
+  "dkim_selectors_found": ["google"],
 
   "mx_accepts_mail": true,
   "mx_records": ["gmail-smtp-in.l.google.com"],
@@ -239,16 +244,18 @@ All fields below appear at the top level of the response.
 | Field | Type | Description |
 |---|---|---|
 | `input` | string | The exact `to_email` value submitted |
-| `is_reachable` | `safe` \| `risky` \| `invalid` \| `unknown` | Aggregate verdict |
+| `is_reachable` | `safe` \| `risky` \| `invalid` \| `unknown` | Aggregate verdict (legacy bucket — preserved for backward compatibility) |
+| `risk_score` | integer (0–100) | Weighted numeric risk score. `0` = clean / deliverable, `100` = invalid or undeliverable. Higher means more bad signals fired (no MX, role account, disposable, missing SPF/DMARC, etc.). Computed independently from `is_reachable` so existing clients can continue using the bucket while new clients can apply custom thresholds. Rough guidance: `0–20` ≈ safe, `21–50` ≈ risky-leaning, `51–80` ≈ likely undeliverable, `81–100` ≈ invalid. |
 
 **Syntax**
 
 | Field | Type | Description |
 |---|---|---|
-| `email_address` | string \| null | Trimmed email address (null if syntax invalid) |
+| `email_address` | string \| null | Trimmed email address (null if syntax invalid). Domain part is ASCII (punycode) form for IDN inputs. |
 | `email_username` | string | Local part (before `@`) |
-| `email_domain` | string | Domain part (after `@`) |
-| `normalized_email` | string \| null | Canonical form (e.g. dots stripped for Gmail) |
+| `email_domain` | string | Domain part (after `@`), ASCII form. For IDN domains the value is the `xn--` punycode form (e.g. `münchen.de` → `xn--mnchen-3ya.de`). |
+| `email_domain_unicode` | string | Original unicode form of the domain as submitted, useful for display (e.g. `münchen.de`). Equal to `email_domain` for ASCII-only domains. |
+| `normalized_email` | string \| null | Canonical form (e.g. dots stripped for Gmail). Built on the ASCII domain form so it can be used as a stable cache/dedupe key. |
 | `is_valid_syntax` | boolean | RFC-compliant syntax check |
 | `syntax_suggestion` | string \| null | Suggested correction for likely typos (e.g. `gnail.com` → `gmail.com`) |
 
@@ -261,6 +268,9 @@ All fields below appear at the top level of the response.
 | `is_b2c_provider` | boolean | Domain is a consumer mailbox provider (Gmail, Yahoo, Outlook, etc.) |
 | `gravatar_url` | string \| null | Gravatar avatar URL when `check_gravatar=true` and one exists |
 | `has_been_pwned` | boolean \| null | Whether the address appears in HIBP (only when `haveibeenpwned_api_key` provided) |
+| `spf_present` | boolean | Domain publishes a `v=spf1` SPF record at the apex (TXT lookup). |
+| `dmarc_policy` | `none` \| `quarantine` \| `reject` \| null | Parsed `p=` tag from the `_dmarc.<domain>` TXT record. `null` means the domain has no DMARC record or the record is malformed. |
+| `dkim_selectors_found` | string[] | Common DKIM selectors that responded with a DKIM-flavored TXT record at `<selector>._domainkey.<domain>`. Empty array means none of the probed selectors (`default`, `google`, `selector1`, `selector2`, `k1`, `k2`, `mail`, `dkim`, `s1`, `s2`, `mandrill`, `mxvault`) returned a hit. This is a probabilistic signal — DKIM doesn't publish selector lists, so a domain may use DKIM with a custom selector that we don't probe. |
 
 **MX**
 
@@ -284,7 +294,7 @@ All fields below appear at the top level of the response.
 | `smtp_is_disabled_account` | boolean | Mailbox exists but is disabled / suspended |
 | `smtp_error_type` | string \| null | Error class (`ConnectionError`, `SmtpError`, etc.) |
 | `smtp_error_message` | string \| null | Raw SMTP error message |
-| `smtp_error_description` | string \| null | Specific tag (`IpBlacklisted`, `NeedsRDNS`) when applicable |
+| `smtp_error_description` | string \| null | Specific tag (`IpBlacklisted`, `NeedsRDNS`, `Greylisted`) when applicable. `Greylisted` indicates the MX returned a 4xx greylist deferral; in worker mode (async/bulk) the worker waits ~60s and re-probes once before surfacing this. The inline single-check HTTP path returns immediately to keep request latency bounded. |
 
 **Debug / metadata**
 

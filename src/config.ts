@@ -9,6 +9,9 @@ function defaultConfig() {
     from_email: "noreply@example.com",
     hello_name: "example.com",
     smtp_timeout: null,
+    smtp: {
+      greylist_retry_ms: 60000,
+    },
     proxy: null,
     overrides: {
       proxies: {},
@@ -162,6 +165,17 @@ function normalizeConfig(config) {
 
   if (!config.throttle) {
     config.throttle = {};
+  }
+
+  if (!config.smtp || typeof config.smtp !== "object") {
+    config.smtp = {};
+  }
+  if (
+    typeof config.smtp.greylist_retry_ms !== "number" ||
+    !Number.isFinite(config.smtp.greylist_retry_ms) ||
+    config.smtp.greylist_retry_ms < 0
+  ) {
+    config.smtp.greylist_retry_ms = 60000;
   }
 
   if (config.worker.enable && config.storage.type !== "postgres") {
