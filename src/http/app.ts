@@ -11,7 +11,7 @@ try {
 const { checkEmail } = require("../checker/checkEmail");
 const { mapRequestToCheckInput } = require("./requestMapper");
 const { badRequest, internalError } = require("./errors");
-const { publishTask, MAX_QUEUE_PRIORITY } = require("../worker/queue");
+const { publishTask, MAX_QUEUE_PRIORITY, CHECK_EMAIL_QUEUE } = require("../worker/queue");
 const { dedupeEmails, canonicalizeEmail } = require("../worker/service");
 
 function resolvePublicDir() {
@@ -156,32 +156,28 @@ function requireWorkerDb(runtime) {
 }
 
 function mapResultToCsvRow(result) {
-  const misc = result?.misc && typeof result.misc === "object" ? result.misc : {};
-  const mx = result?.mx && typeof result.mx === "object" ? result.mx : {};
-  const smtp = result?.smtp && typeof result.smtp === "object" ? result.smtp : {};
-  const syntax = result?.syntax && typeof result.syntax === "object" ? result.syntax : {};
+  const r = result && typeof result === "object" ? result : {};
 
   return {
-    input: result?.input ?? "",
-    is_reachable: result?.is_reachable ?? "",
-    "misc.is_disposable": Boolean(misc.is_disposable),
-    "misc.is_role_account": Boolean(misc.is_role_account),
-    "misc.gravatar_url": misc.gravatar_url ?? null,
-    "mx.accepts_mail": Boolean(mx.accepts_mail),
-    "smtp.can_connect": Boolean(smtp.can_connect_smtp),
-    "smtp.has_full_inbox": Boolean(smtp.has_full_inbox),
-    "smtp.is_catch_all": Boolean(smtp.is_catch_all),
-    "smtp.is_deliverable": Boolean(smtp.is_deliverable),
-    "smtp.is_disabled": Boolean(smtp.is_disabled),
-    "syntax.is_valid_syntax": Boolean(syntax.is_valid_syntax),
-    "syntax.domain": syntax.domain ?? "",
-    "syntax.username": syntax.username ?? "",
+    input: r.input ?? "",
+    is_reachable: r.is_reachable ?? "",
+    email_address: r.email_address ?? "",
+    email_username: r.email_username ?? "",
+    email_domain: r.email_domain ?? "",
+    is_valid_syntax: Boolean(r.is_valid_syntax),
+    is_disposable_email: Boolean(r.is_disposable_email),
+    is_role_account: Boolean(r.is_role_account),
+    is_b2c_provider: Boolean(r.is_b2c_provider),
+    gravatar_url: r.gravatar_url ?? null,
+    mx_accepts_mail: Boolean(r.mx_accepts_mail),
+    mx_preferred_host: r.mx_preferred_host ?? null,
+    smtp_can_connect: Boolean(r.smtp_can_connect),
+    smtp_has_full_inbox: Boolean(r.smtp_has_full_inbox),
+    smtp_is_catch_all: Boolean(r.smtp_is_catch_all),
+    smtp_is_deliverable: Boolean(r.smtp_is_deliverable),
+    smtp_is_disabled_account: Boolean(r.smtp_is_disabled_account),
     error:
-      result?.error ||
-      result?.smtp?.error?.message ||
-      result?.mx?.error?.message ||
-      result?.misc?.error?.message ||
-      null,
+      r.smtp_error_message ?? r.mx_lookup_error_message ?? r.error ?? null,
   };
 }
 
@@ -262,6 +258,36 @@ async function rpcCheckEmail(runtime, task) {
   }
 }
 
+async function checkReadiness(runtime) {
+  const dependencies = {
+    postgres: { ok: false },
+    rabbitmq: { ok: false, queue: CHECK_EMAIL_QUEUE },
+  };
+
+  try {
+    if (runtime.config.storage?.type !== "postgres" || !runtime.storage?.pool?.query) {
+      throw new Error("Postgres storage is not configured");
+    }
+    await runtime.storage.pool.query("SELECT 1");
+    dependencies.postgres.ok = true;
+  } catch (err) {
+    dependencies.postgres.error = String(err?.message || err);
+  }
+
+  try {
+    if (!runtime.rabbit?.channel) {
+      throw new Error("RabbitMQ channel is not available");
+    }
+    await runtime.rabbit.channel.checkQueue(CHECK_EMAIL_QUEUE);
+    dependencies.rabbitmq.ok = true;
+  } catch (err) {
+    dependencies.rabbitmq.error = String(err?.message || err);
+  }
+
+  const ok = dependencies.postgres.ok && dependencies.rabbitmq.ok;
+  return { ok, dependencies };
+}
+
 function createApp(runtime) {
   const app = express();
   const allowedOrigins = getAllowedOrigins(runtime.config);
@@ -286,7 +312,7 @@ function createApp(runtime) {
       ok: true,
       name: "email-validation-service",
       version: appVersion,
-      endpoints: ["/health", "/version", "/v1/check_email"],
+      endpoints: ["/health", "/ready", "/version", "/v1/check_email"],
     });
   });
 
@@ -295,6 +321,14 @@ function createApp(runtime) {
       version: appVersion,
       smtp_port: Number(process.env.EMAIL_CHECKER_SMTP_PORT || 25),
     });
+  });
+
+  app.get("/ready", async (_req, res) => {
+    const readiness = await checkReadiness(runtime);
+    if (!readiness.ok) {
+      return res.status(503).json(readiness);
+    }
+    return res.status(200).json(readiness);
   });
 
   app.post("/v1/check_email", async (req, res) => {
@@ -488,4 +522,5 @@ function createApp(runtime) {
 
 module.exports = {
   createApp,
+  mapResultToCsvRow,
 };

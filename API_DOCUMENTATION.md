@@ -69,7 +69,7 @@ Content-Type: application/json
 
 **`GET /health`**
 
-Returns `200` when the service is running.
+Lightweight liveness probe. Returns `200` when the HTTP process is running.
 
 ```bash
 curl "$BASE_URL/health"
@@ -77,6 +77,31 @@ curl "$BASE_URL/health"
 
 ```json
 { "ok": true }
+```
+
+---
+
+### Readiness Check
+
+**`GET /ready`**
+
+Dependency readiness probe for orchestration. Returns:
+
+- `200` only when both Postgres and RabbitMQ are reachable
+- `503` when either dependency is unavailable
+
+```bash
+curl "$BASE_URL/ready"
+```
+
+```json
+{
+  "ok": true,
+  "dependencies": {
+    "postgres": { "ok": true },
+    "rabbitmq": { "ok": true, "queue": "check_email" }
+  }
+}
 ```
 
 ---
@@ -302,13 +327,62 @@ Submit a list of emails for async processing.
 
 #### Webhook object
 
-The worker POSTs `{ "result": <CheckEmailResponse>, "extra": <any | null> }` to `webhook.on_each_email.url` for **every** processed address (not once at the end of the job). Headers from `webhook.on_each_email.headers` are merged on top of `content-type: application/json`.
+The worker POSTs to `webhook.on_each_email.url` for **every** processed address (not once at the end of the job). Headers from `webhook.on_each_email.headers` are merged on top of `content-type: application/json`.
+
+The body is JSON with these keys:
+
+| Key | Type | Description |
+|---|---|---|
+| `result` | object | The full `CheckEmailResponse` for the address |
+| `extra` | any \| null | Opaque value passed through from `on_each_email.extra` |
+| `taskId` | string | Stable identifier for this delivery (UUID, reused across retries) |
+| `email` | string | The email address that was checked |
+| `jobId` | object | The originating job, e.g. `{ "kind": "bulk_v1", "id": 123 }` |
+
+Existing receivers built before this change continue to work — `result` and `extra` retain their original shape. The other keys are additive.
 
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `on_each_email.url` | string | ✅ | Endpoint that receives the POST |
 | `on_each_email.headers` | object | | Extra HTTP headers (e.g. `{ "authorization": "Bearer ..." }`) |
 | `on_each_email.extra` | any | | Opaque value forwarded back to the webhook in the body's `extra` field |
+
+#### Delivery guarantees
+
+- **Retries**: 3 attempts total. Backoff between attempts is `1s`, `5s`, `30s`. Network errors, HTTP 5xx, and HTTP 429 are retried. HTTP 2xx ends the loop with success. Other 4xx responses are treated as terminal failures.
+- **At-least-once**: if the worker process is killed after delivering the webhook but before acking the queue message, RabbitMQ may redeliver and the webhook may fire again. The `taskId` field can be used to dedupe on the receiver side.
+- **Terminal failure**: when all 3 attempts fail (or a non-retriable status is returned), a single structured JSON line is emitted to the worker's stdout with `event: "webhook_delivery_failed"`, `endpoint`, `taskId`, `jobId`, `email`, `attempts`, `status`, and `error`.
+
+#### Signature verification
+
+When a webhook secret is configured on the server, every request includes an `X-Webhook-Signature` header containing the HMAC-SHA256 of the raw request body, hex-encoded. Receivers should compute the same digest and compare in constant time:
+
+```js
+const crypto = require("node:crypto");
+
+function verify(rawBody, headerValue, secret) {
+  const expected = crypto
+    .createHmac("sha256", secret)
+    .update(rawBody)
+    .digest("hex");
+  const a = Buffer.from(expected, "hex");
+  const b = Buffer.from(headerValue || "", "hex");
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+```
+
+If no secret is configured, the header is **not** sent — preserving the pre-change request shape for receivers that don't need verification.
+
+Configure the secret via env or TOML:
+
+```bash
+EMAIL_CHECKER__WORKER__WEBHOOK__SECRET=your-shared-secret
+```
+
+```toml
+[worker.webhook]
+secret = "your-shared-secret"
+```
 
 ```json
 {
@@ -402,7 +476,32 @@ curl "$BASE_URL/v1/bulk/42/results?format=csv" \
   -o results.csv
 ```
 
-The result list contains exactly one row per address in the original submission, in submission order, with the `input` field set to the address as it was sent (preserving case and whitespace). When duplicates were collapsed, each duplicate row is reconstructed from the single underlying check, so `is_reachable` and the rest of the fields are identical across copies. `limit` and `offset` page over this expanded list.
+##### CSV columns
+
+The CSV is a flat snapshot of the most useful fields from each result. Column names match the JSON response fields described above (one row per email).
+
+| Column | Type | Source field |
+|---|---|---|
+| `input` | string | `input` |
+| `is_reachable` | string | `is_reachable` |
+| `email_address` | string | `email_address` |
+| `email_username` | string | `email_username` |
+| `email_domain` | string | `email_domain` |
+| `is_valid_syntax` | boolean | `is_valid_syntax` |
+| `is_disposable_email` | boolean | `is_disposable_email` |
+| `is_role_account` | boolean | `is_role_account` |
+| `is_b2c_provider` | boolean | `is_b2c_provider` |
+| `gravatar_url` | string \| null | `gravatar_url` |
+| `mx_accepts_mail` | boolean | `mx_accepts_mail` |
+| `mx_preferred_host` | string \| null | `mx_preferred_host` |
+| `smtp_can_connect` | boolean | `smtp_can_connect` |
+| `smtp_has_full_inbox` | boolean | `smtp_has_full_inbox` |
+| `smtp_is_catch_all` | boolean | `smtp_is_catch_all` |
+| `smtp_is_deliverable` | boolean | `smtp_is_deliverable` |
+| `smtp_is_disabled_account` | boolean | `smtp_is_disabled_account` |
+| `error` | string \| null | First non-empty of `smtp_error_message`, `mx_lookup_error_message`, top-level `error` |
+
+For the full per-row schema (DNS lookup details, SMTP error subtypes, debug/timing fields), use `format=json`.
 
 ---
 
@@ -420,7 +519,7 @@ All errors return JSON:
 | `400` | Bad request — missing/invalid field or wrong/missing `x-api-secret` |
 | `429` | Rate limited — try again after a short delay |
 | `500` | Internal server error |
-| `503` | Infrastructure not available (worker/RabbitMQ/Postgres not configured) |
+| `503` | Infrastructure not available (`/ready` failed or worker dependencies unavailable) |
 
 ---
 
