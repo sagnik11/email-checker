@@ -55,6 +55,12 @@ Returns a single flat JSON object — `is_reachable` plus every check detail at 
 
 See [`API_DOCUMENTATION.md`](./API_DOCUMENTATION.md) for the full per-field reference.
 
+### Single Email Verification (Streaming)
+
+`GET /v1/check_email/stream?email=...`
+
+Same pipeline as `POST /v1/check_email`, but each pipeline stage is emitted to the client as a Server-Sent Event the moment it completes. The UI uses this to show real progress instead of a fake spinner. Stages: `syntax`, `mx`, `smtp_connect`, `smtp_rcpt`, `done` (terminal frame carries the full `CheckEmailResponse`). Short-circuited stages (e.g. invalid syntax skips `mx`/`smtp_*`) are simply omitted before `done`. Authentication accepts either the `x-api-secret` header or an `api_secret` query parameter — the latter exists because browser `EventSource` cannot send custom headers. Always runs inline in the API process even when worker mode is enabled.
+
 ### Bulk Verification
 
 `POST /v1/bulk` → `GET /v1/bulk/:id` → `GET /v1/bulk/:id/results`
@@ -92,7 +98,7 @@ email-validator worker --config ./backend_config.toml
 
 ### Web UI
 
-Served at `/`. Calls `POST /v1/check_email` and displays results in the browser — useful for quick manual checks.
+Served at `/`. Consumes `GET /v1/check_email/stream` over `EventSource` and renders pipeline stages live, then displays the final result panel when the `done` event arrives.
 
 ---
 

@@ -174,7 +174,12 @@ function buildResult({
   };
 }
 
-async function checkEmail(rawInput = {}) {
+async function checkEmail(rawInput = {}, options = {}) {
+  const onProgress = typeof options.onProgress === "function" ? options.onProgress : null;
+  const emit = (stage, payload) => {
+    if (!onProgress) return;
+    try { onProgress(stage, payload); } catch (_) {}
+  };
   const startTimeMs = Date.now();
   const startTime = new Date(startTimeMs);
 
@@ -221,6 +226,7 @@ async function checkEmail(rawInput = {}) {
   const skippedVerifMethod = { type: "skipped" };
 
   const syntax = checkSyntax(input.to_email);
+  emit("syntax", syntax);
   if (!syntax.is_valid_syntax) {
     return buildResult({
       input: input.to_email,
@@ -245,8 +251,24 @@ async function checkEmail(rawInput = {}) {
   let mxResult;
   try {
     mxResult = await checkMx(syntax.domain);
+    emit("mx", {
+      accepts_mail: mxResult.accepts_mail,
+      records: mxResult.records,
+      preferred: mxResult.preferred,
+      lookupError: mxResult.lookupError || null,
+    });
   } catch (err) {
     getSimilarMailProvider(syntax);
+    const lookupError = {
+      type: err?.code || err?.name || "MxError",
+      message: err?.message || String(err),
+    };
+    emit("mx", {
+      accepts_mail: false,
+      records: [],
+      preferred: null,
+      lookupError,
+    });
     return buildResult({
       input: input.to_email,
       isReachable: "unknown",
@@ -256,10 +278,7 @@ async function checkEmail(rawInput = {}) {
         accepts_mail: false,
         records: [],
         preferred: null,
-        lookupError: {
-          type: err?.code || err?.name || "MxError",
-          message: err?.message || String(err),
-        },
+        lookupError,
       },
       smtpValue: buildDefaultSmtpDetails(),
       smtpError: null,
@@ -316,6 +335,7 @@ async function checkEmail(rawInput = {}) {
     retries: input.retries,
     provider,
     chosenMethod,
+    onProgress,
   });
 
   if (smtpResult.smtpError) {

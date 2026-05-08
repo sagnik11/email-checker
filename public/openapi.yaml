@@ -168,6 +168,72 @@ paths:
         "503":
           description: Worker mode enabled but RabbitMQ/Postgres not reachable
 
+  /v1/check_email/stream:
+    get:
+      tags: [validation]
+      summary: Validate a single email and stream pipeline progress (SSE)
+      description: |
+        Runs the same pipeline as `POST /v1/check_email` but streams each stage
+        back to the client as a Server-Sent Event so the UI can show real
+        progress instead of waiting for the final JSON.
+
+        Stages emitted (in execution order, short-circuited stages are
+        omitted):
+
+        | Event          | `data:` payload (JSON)                                        |
+        |----------------|--------------------------------------------------------------|
+        | `syntax`       | `{ is_valid_syntax, domain, username, address }`             |
+        | `mx`           | `{ accepts_mail, records, preferred, lookupError }`          |
+        | `smtp_connect` | `{ host, port }`                                             |
+        | `smtp_rcpt`    | `{ code, message }`                                          |
+        | `done`         | The full `CheckEmailResponse` (same shape as the POST endpoint) |
+        | `error`        | `{ message }` — only on unexpected server errors             |
+
+        OpenAPI cannot model SSE event streams formally, so the response
+        schema below describes the framing and the `done` event payload.
+
+        A `: ping` heartbeat comment is sent every 15 seconds.
+
+        **Auth**: send `x-api-secret` as a header *or* as the `api_secret`
+        query parameter. The query form exists because browser `EventSource`
+        cannot send custom headers.
+
+        **Worker mode**: this endpoint always runs the check inline in the
+        API process, even when `worker.enable = true`. The non-streaming
+        `POST /v1/check_email` retains worker-mode RPC behavior.
+      parameters:
+        - in: query
+          name: email
+          required: true
+          schema: { type: string, format: email }
+          description: Address to validate.
+        - in: query
+          name: api_secret
+          required: false
+          schema: { type: string }
+          description: Same value as the `x-api-secret` header. Required when the server is configured with a header secret and the request is from a browser `EventSource`.
+      responses:
+        "200":
+          description: |
+            Server-Sent Event stream. Each frame is `event: <stage>` followed by
+            `data: <json>` and a blank line. The terminal frame is `event: done`
+            with the full `CheckEmailResponse` as its payload.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: SSE stream as described above. The `done` event payload conforms to `CheckEmailResponse`.
+        "400":
+          description: Missing `email` query parameter or missing/invalid auth.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "429":
+          description: Throttled — rate limit exceeded.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
   /v1/bulk:
     post:
       tags: [bulk]

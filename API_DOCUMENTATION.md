@@ -281,6 +281,73 @@ All fields below appear at the top level of the response.
 
 ---
 
+### Single Email Validation (Streaming)
+
+**`GET /v1/check_email/stream`**
+
+Run the same validation pipeline as `POST /v1/check_email`, but stream each pipeline stage back to the client over Server-Sent Events as it completes. Useful for UIs that want to surface progress during long SMTP probes instead of blocking on a single JSON response.
+
+**Query parameters**
+
+| Name | Required | Description |
+|---|---|---|
+| `email` | ✅ | The address to validate. The endpoint accepts this address only — all other knobs (SMTP port, hello name, proxy, etc.) come from server config. |
+| `api_secret` | conditional | Same value as the `x-api-secret` header. Required when the server is configured with a header secret and the request comes from a browser `EventSource` (which cannot send custom headers). |
+
+**Authentication**
+
+Either send `x-api-secret: <secret>` as a header (server-to-server) or pass `api_secret=<secret>` as a query parameter (browser `EventSource`). The same secret is checked.
+
+**Event sequence**
+
+Stages are emitted in the same order as the underlying pipeline. If a stage is short-circuited (invalid syntax → no MX/SMTP; MX failure → no SMTP), only the stages that actually ran are emitted, followed by `done`.
+
+| Event | When | `data:` payload |
+|---|---|---|
+| `syntax` | Local syntax check completes | `{ is_valid_syntax, domain, username, address }` |
+| `mx` | MX resolution finishes (success or DNS error) | `{ accepts_mail, records, preferred, lookupError }` |
+| `smtp_connect` | TCP/TLS socket to the preferred MX is open | `{ host, port }` |
+| `smtp_rcpt` | The mail server replied to `RCPT TO` | `{ code, message }` |
+| `done` | Pipeline finished — full result is attached | The same `CheckEmailResponse` object that `POST /v1/check_email` returns |
+| `error` | Unexpected server-side error | `{ message }` |
+
+A `: ping` heartbeat comment is emitted every 15 seconds to keep proxies from idling out the connection.
+
+**Example: cURL**
+
+```bash
+curl -N "$BASE_URL/v1/check_email/stream?email=foo@example.com&api_secret=$API_SECRET"
+```
+
+`-N` disables curl's output buffering so events appear as they arrive.
+
+**Example: Browser `EventSource`**
+
+```js
+const url = new URL("/v1/check_email/stream", window.location.origin);
+url.searchParams.set("email", "foo@example.com");
+// url.searchParams.set("api_secret", "..."); // only if your server requires it
+
+const es = new EventSource(url);
+
+es.addEventListener("syntax",       (e) => console.log("syntax",       JSON.parse(e.data)));
+es.addEventListener("mx",           (e) => console.log("mx",           JSON.parse(e.data)));
+es.addEventListener("smtp_connect", (e) => console.log("smtp_connect", JSON.parse(e.data)));
+es.addEventListener("smtp_rcpt",    (e) => console.log("smtp_rcpt",    JSON.parse(e.data)));
+es.addEventListener("done",         (e) => { console.log("result", JSON.parse(e.data)); es.close(); });
+es.addEventListener("error",        (e) => { console.error(e); es.close(); });
+```
+
+**Worker mode caveat**
+
+When the deployment is configured with `worker.enable = true`, `POST /v1/check_email` dispatches the check through the AMQP RPC worker. The streaming endpoint always runs the check **inline in the API process** so it can emit progress events directly. This means the streaming endpoint does not consume worker capacity, and rate limiting / storage behavior matches the inline path.
+
+**Rate limiting and storage**
+
+Streamed checks count against the same throttle as `POST /v1/check_email`, and the final result is persisted via the same storage path. A 429 is returned (as JSON, before the stream opens) when the throttle is exhausted.
+
+---
+
 ### Bulk Validation (Async)
 
 Bulk endpoints require:
