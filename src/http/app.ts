@@ -637,6 +637,33 @@ function createApp(runtime) {
     }
   });
 
+  app.get("/v1/bulk/:id/failures", async (req, res) => {
+    const workerDb = requireWorkerDb(runtime);
+    if (!workerDb.ok) {
+      return res.status(workerDb.code).json(workerDb.body);
+    }
+
+    try {
+      const jobId = Number(req.params.id);
+      const job = await runtime.storage.getV1BulkJob(jobId);
+      if (!job) {
+        return badRequest(res, "Job not found");
+      }
+
+      const { limit, offset } = parseLimitOffset(req);
+      const failures = await runtime.storage.getV1Failures(
+        jobId,
+        limit === null ? 50 : limit,
+        offset
+      );
+      const total = await runtime.storage.countV1Failures(jobId);
+
+      return res.json({ job_id: jobId, total, failures });
+    } catch (err) {
+      return internalError(res, err);
+    }
+  });
+
   app.get("/health", (_req, res) => {
     res.json({ ok: true });
   });

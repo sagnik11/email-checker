@@ -63,9 +63,9 @@ Same pipeline as `POST /v1/check_email`, but each pipeline stage is emitted to t
 
 ### Bulk Verification
 
-`POST /v1/bulk` → `GET /v1/bulk/:id` → `GET /v1/bulk/:id/results`
+`POST /v1/bulk` → `GET /v1/bulk/:id` → `GET /v1/bulk/:id/results` (or `GET /v1/bulk/:id/failures` for retry-exhausted tasks)
 
-Requires: worker mode + RabbitMQ + Postgres. Submit a list of addresses, poll for progress, retrieve paginated JSON or a full CSV export. CSV columns mirror the flat JSON keys (`is_reachable`, `email_address`, `is_disposable_email`, `smtp_is_deliverable`, …) — see [`API_DOCUMENTATION.md` → "CSV columns"](./API_DOCUMENTATION.md#csv-columns) for the full list.
+Requires: worker mode + RabbitMQ + Postgres. Submit a list of addresses, poll for progress, retrieve paginated JSON or a full CSV export. CSV columns mirror the flat JSON keys (`is_reachable`, `email_address`, `is_disposable_email`, `smtp_is_deliverable`, …) — see [`API_DOCUMENTATION.md` → "CSV columns"](./API_DOCUMENTATION.md#csv-columns) for the full list.  Tasks that exceed the retry budget are routed to a dead-letter queue and surfaced via the `/failures` endpoint.
 
 The submitted list is deduplicated case-insensitively (after trimming whitespace) before tasks are published, so each unique address is only checked once per job. The original input list is persisted on the `v1_bulk_job` row and replayed at result-fetch time, so the JSON / CSV output still contains exactly one row per submitted input — same casing, same order, same multiplicity. The `POST /v1/bulk` response surfaces `total_inputs`, `unique_inputs`, and `deduplicated` so callers can see how much work was saved.
 
@@ -210,13 +210,29 @@ Key files: `src/worker/run.ts`, `src/worker/service.ts`, `src/worker/queue.ts`
 Consumer loop per message:
 
 1. Parse and validate task payload
-2. Apply throttle — nack and discard if over limit
+2. Apply throttle — nack with requeue if over limit (transient; does not consume retry budget)
 3. Execute the check pipeline
 4. On `unknown` SMTP result → requeue once
 5. On other transient failure → requeue once
-6. Persist result to Postgres
-7. If message has `replyTo` / `correlationId` → send RPC reply (single-shot mode)
-8. Ack message
+6. After the second attempt still fails for a bulk task → publish to the dead-letter exchange `dlx.email_check` with `x-last-error` and `x-attempts` headers, then ack
+7. Persist result to Postgres on success (or on second-attempt success/unknown for non-bulk tasks)
+8. If message has `replyTo` / `correlationId` → send RPC reply (single-shot mode)
+9. Ack message
+
+A second consumer drains `dlq.email_check`. For each dead-lettered message it inserts:
+
+- a row into `v1_dlq_task` (the failure log surfaced by `GET /v1/bulk/:id/failures`)
+- a row into `v1_task_result` with the `error` column populated, so `getV1BulkProgress` and `countV1Processed` continue to mark the task as processed and the job can complete.
+
+The `check_email` queue is declared with `deadLetterExchange: "dlx.email_check"` and `deadLetterRoutingKey: "check_email"`. The DLQ uses `nack(requeue=false)` semantics implicitly — the worker chooses to `publish` directly to the DLX so it can attach the human-readable last-error message that AMQP's `x-death` header does not carry.
+
+### Storage tables
+
+| Table | Purpose |
+|---|---|
+| `v1_bulk_job` | One row per bulk job submission |
+| `v1_task_result` | One row per processed task (success or failure) |
+| `v1_dlq_task` | One row per dead-lettered task (retry-budget exhausted) |
 
 ---
 

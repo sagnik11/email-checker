@@ -170,3 +170,5 @@ flyctl secrets set \
 ```
 
 Then run a separate worker machine or process group.
+
+The worker auto-declares the dead-letter exchange (`dlx.email_check`) and queue (`dlq.email_check`) on startup — no extra infra is required. If you are upgrading an existing deployment with a pre-existing `check_email` queue, drain and delete that queue once via the broker management UI before redeploying so the new arguments can be applied.
