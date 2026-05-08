@@ -124,34 +124,35 @@ Ensure bulk CSV export reflects the current flat result object.
 
 ---
 
-### 1.4 Structured Logging + Prometheus Metrics
+### 1.4 Structured Logging + Prometheus Metrics ✅ Shipped
 
 **Goal**  
 Establish production observability baseline.
 
 **Implementation**
 
-- Add `pino-http` for JSON access logs:
-  - request id
-  - method/path/status
-  - latency
-  - verification verdict when available
-- Add `prom-client` and expose `GET /metrics`.
-- New module: `src/http/metrics.ts`.
-- Wire metrics collection into `src/http/app.ts` and checker/worker flow.
+- ✅ `pino` + `pino-http` for JSON access logs with request id, method/path/status, latency, and verification verdict when available (`src/logger.ts`, `src/http/app.ts`).
+- ✅ `prom-client` exposes `GET /metrics` with the four custom metrics plus default Node process metrics (`src/http/metrics.ts`).
+- ✅ Metrics are incremented in both the HTTP path (`src/http/app.ts`) and the worker dequeue path (`src/worker/run.ts`); SMTP errors are classified via the existing parsers in `src/checker/smtpParser.ts`.
+- ✅ Sample scrape config at `prometheus.yml`.
 
-**Initial Metrics**
+**Shipped Metrics**
 
-- `check_email_total{verdict}`
-- `check_email_duration_seconds` (histogram)
-- `bulk_job_active`
-- `smtp_errors_total{reason}` (reason from `src/checker/smtpParser.ts`)
+- `check_email_total{verdict}` — counter
+- `check_email_duration_seconds` — histogram
+- `bulk_job_active` — gauge
+- `smtp_errors_total{reason}` — counter (reason ∈ `invalid` | `full_inbox` | `disabled` | `ip_blacklisted` | `needs_rdns` | `other`)
 
 **Acceptance Criteria**
 
-- `/metrics` outputs valid Prometheus text format.
-- Counters/histograms change under request load.
-- Logs are machine-readable JSON.
+- ✅ `/metrics` outputs valid Prometheus text format (verified with `test/metrics.test.ts`).
+- ✅ Counters/histograms change under request load.
+- ✅ Logs are machine-readable JSON.
+
+**Follow-ups (not in this PR)**
+
+- Optional auth gate on `/metrics` (today: relies on private network or proxy auth).
+- Add `source="http"|"worker"` label to `check_email_total` if operators need to split.
 
 ---
 

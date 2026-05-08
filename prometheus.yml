@@ -1,0 +1,26 @@
+# Sample Prometheus scrape configuration for the email-validation-service.
+#
+# Drop this into your Prometheus config (or merge the `scrape_configs` block
+# into an existing one). Adjust `targets` to point at the host:port where the
+# HTTP server is listening (the same one that exposes /v1/check_email).
+#
+# Metrics exposed at GET /metrics:
+#   - check_email_total{verdict="safe|risky|invalid|unknown"}
+#   - check_email_duration_seconds (histogram)
+#   - bulk_job_active (gauge — incremented while a worker is processing a task)
+#   - smtp_errors_total{reason="invalid|full_inbox|disabled|ip_blacklisted|needs_rdns|other"}
+#   - process_* and nodejs_* defaults from prom-client
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: email-validator
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - "localhost:8080"
+        labels:
+          service: email-validation-service
+          env: local

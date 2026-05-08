@@ -6,6 +6,9 @@ const { Rule, hasRule } = require("./rules");
 const { buildDefaultSmtpDetails, checkSmtp } = require("./smtp");
 const { providerFromDomain, providerFromMx } = require("./provider");
 const { durationFromMs } = require("./util");
+const { logger } = require("../logger");
+
+const checkLogger = logger.child({ source: "checkEmail" });
 
 function flattenSyntax(syntax) {
   return {
@@ -254,18 +257,17 @@ async function checkEmail(rawInput = {}, options = {}) {
   // Env var always wins so cloud providers that block port 25 can override via EMAIL_CHECKER_SMTP_PORT=587
   const effectiveSmtpPort = Number(process.env.EMAIL_CHECKER_SMTP_PORT || rawInput.smtp_port || 25);
 
-  console.log(JSON.stringify({
-    ts: startTime.toISOString(),
-    level: "info",
-    source: "checkEmail",
-    msg: "check started",
-    to_email: String(rawInput.to_email || "").trim(),
-    smtp_port: effectiveSmtpPort,
-    node_version: process.version,
-    platform: process.platform,
-    env_smtp_port: process.env.EMAIL_CHECKER_SMTP_PORT || "(not set, defaulting to 25)",
-    client_requested_port: rawInput.smtp_port ?? "(not sent)",
-  }));
+  checkLogger.info(
+    {
+      to_email: String(rawInput.to_email || "").trim(),
+      smtp_port: effectiveSmtpPort,
+      node_version: process.version,
+      platform: process.platform,
+      env_smtp_port: process.env.EMAIL_CHECKER_SMTP_PORT || "(not set, defaulting to 25)",
+      client_requested_port: rawInput.smtp_port ?? "(not sent)",
+    },
+    "check started"
+  );
 
   const input = {
     to_email: String(rawInput.to_email || "").trim(),

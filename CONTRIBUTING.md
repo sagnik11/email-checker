@@ -27,6 +27,20 @@ npm run dev
 
 The server starts at `http://127.0.0.1:8080`. The web UI at `/` is useful for manual testing.
 
+For verbose logs while debugging:
+
+```bash
+LOG_LEVEL=debug npm run dev
+```
+
+You can pipe the JSON output through [`pino-pretty`](https://github.com/pinojs/pino-pretty) for human-readable formatting:
+
+```bash
+npm run dev | npx pino-pretty
+```
+
+Prometheus metrics are exposed at `GET /metrics`. See the **Observability** section of `README.md` for the metric catalogue.
+
 ---
 
 ## Running tests
@@ -47,9 +61,11 @@ Please add or update tests when your change affects any of these areas. New feat
 src/
   checker/    — verification pipeline (syntax → MX → misc → SMTP → scoring)
   http/       — Express routes and middleware
+  http/metrics.ts — Prometheus registry + counters/histograms/gauge
   worker/     — RabbitMQ consumer and task execution
   storage/    — Postgres adapter and storage abstraction
   config.ts   — config loading (TOML + env)
+  logger.ts   — pino singleton (import as `const { logger } = require("./logger")`)
   runtime.ts  — wires config/storage/throttle/rabbit together
 
 bin/

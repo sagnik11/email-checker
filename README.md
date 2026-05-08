@@ -315,11 +315,43 @@ Full reference: [`API_DOCUMENTATION.md`](./API_DOCUMENTATION.md)
 | `GET` | `/health` | Process liveness check (server is alive) |
 | `GET` | `/ready` | Dependency readiness check (Postgres + RabbitMQ) |
 | `GET` | `/version` | Package version |
+| `GET` | `/metrics` | Prometheus metrics (text v0.0.4) |
 | `POST` | `/v1/check_email` | Validate a single email |
 | `GET` | `/v1/check_email/stream` | Validate a single email and stream pipeline stages over Server-Sent Events |
 | `POST` | `/v1/bulk` | Submit a bulk validation job |
 | `GET` | `/v1/bulk/:id` | Poll bulk job progress |
 | `GET` | `/v1/bulk/:id/results` | Fetch results (JSON or CSV) |
+
+---
+
+## Observability
+
+The service emits structured JSON logs (via [pino](https://github.com/pinojs/pino)) and Prometheus metrics out of the box.
+
+### Logs
+
+Every HTTP request produces one JSON access log line containing `req.id`, `method`, `url`, `statusCode`, `responseTime` (ms), and — for `/v1/check_email` — the resolved `verdict`. Application logs (MX lookups, SMTP exchanges, worker lifecycle) carry a `source` field. Set `LOG_LEVEL=debug` (default `info`) for verbose output.
+
+```bash
+LOG_LEVEL=debug npm run dev
+```
+
+### Metrics
+
+`GET /metrics` returns Prometheus exposition format. The custom metrics are:
+
+| Metric | Type | Labels | Meaning |
+|---|---|---|---|
+| `check_email_total` | counter | `verdict` (`safe`/`risky`/`invalid`/`unknown`) | Email checks completed |
+| `check_email_duration_seconds` | histogram | — | Latency of each check |
+| `bulk_job_active` | gauge | — | Bulk-queue tasks currently in flight on this worker |
+| `smtp_errors_total` | counter | `reason` (`invalid`/`full_inbox`/`disabled`/`ip_blacklisted`/`needs_rdns`/`other`) | Classified SMTP errors |
+
+Default Node process metrics (`process_cpu_seconds_total`, `nodejs_eventloop_lag_seconds`, GC, heap, etc.) are also exported.
+
+A sample scrape config is provided at [`prometheus.yml`](./prometheus.yml). Drop it into your Prometheus install or merge the `scrape_configs` block.
+
+> **Production note**: `/metrics` is unauthenticated. Expose it only on a private network or behind your existing auth proxy.
 
 ---
 

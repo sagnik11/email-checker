@@ -5,6 +5,12 @@ const { ThrottleManager } = require("../throttle");
 const { CHECK_EMAIL_QUEUE, setupRabbitMQ } = require("./queue");
 const { processCheckEmailTask, taskError } = require("./service");
 const { sendSingleShotReply } = require("./singleShot");
+const { logger } = require("../logger");
+const {
+  bulkJobActive,
+  checkEmailDuration,
+  recordVerdict,
+} = require("../http/metrics");
 
 async function startWorker(deps) {
   const config = deps?.config || loadConfig();
@@ -51,7 +57,21 @@ async function startWorker(deps) {
 
       throttle.incrementCounters();
 
-      const workerOutput = await processCheckEmailTask(task, config);
+      bulkJobActive.inc();
+      const stopTimer = checkEmailDuration.startTimer();
+      let workerOutput;
+      try {
+        workerOutput = await processCheckEmailTask(task, config);
+      } finally {
+        stopTimer();
+        bulkJobActive.dec();
+      }
+
+      if (workerOutput?.ok) {
+        recordVerdict(workerOutput.result?.is_reachable);
+      } else {
+        recordVerdict("unknown");
+      }
 
       if (
         workerOutput.ok &&
@@ -107,12 +127,13 @@ async function startWorker(deps) {
 if (require.main === module) {
   startWorker()
     .then(() => {
-      // eslint-disable-next-line no-console
-      console.log("worker started");
+      logger.info({ source: "worker" }, "worker started");
     })
     .catch((err) => {
-      // eslint-disable-next-line no-console
-      console.error(err?.stack || err?.message || String(err));
+      logger.error(
+        { source: "worker", err: err?.stack || err?.message || String(err) },
+        "worker failed to start"
+      );
       process.exit(1);
     });
 }

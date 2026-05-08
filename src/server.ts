@@ -2,6 +2,7 @@
 const { createRuntime } = require("./runtime");
 const { createApp } = require("./http/app");
 const { startWorker } = require("./worker/run");
+const { logger } = require("./logger");
 
 async function startServer(options = {}) {
   const runtime = options.runtime || (await createRuntime({ configPath: options.configPath }));
@@ -56,14 +57,20 @@ async function startServer(options = {}) {
 if (require.main === module) {
   startServer()
     .then(({ runtime }) => {
-      // eslint-disable-next-line no-console
-      console.log(
-        `email-validation-service listening on http://${runtime.config.http_host}:${runtime.config.http_port}`
+      logger.info(
+        {
+          source: "server",
+          host: runtime.config.http_host,
+          port: runtime.config.http_port,
+        },
+        "email-validation-service listening"
       );
     })
     .catch((err) => {
-      // eslint-disable-next-line no-console
-      console.error(err?.stack || err?.message || String(err));
+      logger.error(
+        { source: "server", err: err?.stack || err?.message || String(err) },
+        "server failed to start"
+      );
       process.exit(1);
     });
 }

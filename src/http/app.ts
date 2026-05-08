@@ -8,11 +8,18 @@ let appVersion = "0.0.0";
 try {
   appVersion = require(path.resolve(process.cwd(), "package.json")).version || appVersion;
 } catch (_) {}
+const pinoHttp = require("pino-http");
 const { checkEmail } = require("../checker/checkEmail");
 const { mapRequestToCheckInput } = require("./requestMapper");
 const { badRequest, internalError } = require("./errors");
 const { publishTask, MAX_QUEUE_PRIORITY, CHECK_EMAIL_QUEUE } = require("../worker/queue");
 const { dedupeEmails, canonicalizeEmail } = require("../worker/service");
+const { logger } = require("../logger");
+const {
+  registry,
+  recordVerdict,
+  checkEmailDuration,
+} = require("./metrics");
 
 function resolvePublicDir() {
   const candidates = [
@@ -300,6 +307,26 @@ function createApp(runtime) {
     next();
   });
 
+  app.use(
+    pinoHttp({
+      logger,
+      genReqId: (req) =>
+        req.headers["x-request-id"] || crypto.randomUUID(),
+      customProps: (_req, res) => {
+        const verdict = res.locals && res.locals.verdict;
+        return verdict ? { verdict } : {};
+      },
+      customLogLevel: (_req, res, err) => {
+        if (err || res.statusCode >= 500) return "error";
+        if (res.statusCode >= 400) return "warn";
+        return "info";
+      },
+      autoLogging: {
+        ignore: (req) => req.url === "/metrics" || req.url === "/health",
+      },
+    })
+  );
+
   app.use(express.json({ limit: "50mb" }));
 
   const publicDir = resolvePublicDir();
@@ -352,12 +379,15 @@ function createApp(runtime) {
       });
     }
 
+    const stopTimer = checkEmailDuration.startTimer();
     try {
       const input = mapRequestToCheckInput(req.body, runtime.config, { job_source: "v1" });
 
       if (!runtime.config.worker.enable) {
         const result = await checkEmail(input);
         runtime.throttle.incrementCounters();
+        recordVerdict(result?.is_reachable);
+        res.locals.verdict = result?.is_reachable;
 
         await runtime.storage.store(
           {
@@ -383,9 +413,14 @@ function createApp(runtime) {
         webhook: null,
       });
 
+      recordVerdict(result?.is_reachable);
+      res.locals.verdict = result?.is_reachable;
       return res.json(result);
     } catch (err) {
+      recordVerdict("unknown");
       return res.status(Number(err.statusCode || 500)).json({ error: err.message });
+    } finally {
+      stopTimer();
     }
   });
 
@@ -604,6 +639,15 @@ function createApp(runtime) {
 
   app.get("/health", (_req, res) => {
     res.json({ ok: true });
+  });
+
+  app.get("/metrics", async (_req, res) => {
+    try {
+      res.setHeader("Content-Type", registry.contentType);
+      res.send(await registry.metrics());
+    } catch (err) {
+      res.status(500).send(String(err?.message || err));
+    }
   });
 
   return app;

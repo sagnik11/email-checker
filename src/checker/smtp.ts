@@ -12,25 +12,26 @@ const {
   isIpBlacklistedError,
   isNeedsRdnsError,
 } = require("./smtpParser");
+const { logger } = require("../logger");
+const { recordSmtpError } = require("../http/metrics");
 
 const SMTP_LOG = process.env.SMTP_DEBUG === "true";
+const smtpLogger = logger.child({ source: "smtp" });
 
 function smtpLog(level, msg, meta = {}) {
-  const entry = {
-    ts: new Date().toISOString(),
-    level,
-    source: "smtp",
-    msg,
-    ...meta,
-  };
   if (level === "error") {
-    console.error(JSON.stringify(entry));
+    smtpLogger.error(meta, msg);
+  } else if (level === "warn") {
+    smtpLogger.warn(meta, msg);
+  } else if (level === "debug") {
+    smtpLogger.debug(meta, msg);
   } else {
-    console.log(JSON.stringify(entry));
+    smtpLogger.info(meta, msg);
   }
 }
 
 function toSmtpError(type, message, description) {
+  recordSmtpError(message);
   return {
     error: {
       type,

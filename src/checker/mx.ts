@@ -1,6 +1,9 @@
 // @ts-nocheck
 const dns = require("node:dns/promises");
 const { normalizeMxHost } = require("./rules");
+const { logger } = require("../logger");
+
+const mxLogger = logger.child({ source: "mx" });
 
 function getMxErrorType(err) {
   if (!err) return "UnknownError";
@@ -9,7 +12,7 @@ function getMxErrorType(err) {
 }
 
 async function checkMx(domain) {
-  console.log(JSON.stringify({ ts: new Date().toISOString(), level: "info", source: "mx", msg: "resolving MX", domain }));
+  mxLogger.info({ domain }, "resolving MX");
   try {
     const mxRecords = await dns.resolveMx(domain);
     const sorted = mxRecords
@@ -22,10 +25,13 @@ async function checkMx(domain) {
       preferred: sorted[0] || null,
       lookupError: null,
     };
-    console.log(JSON.stringify({ ts: new Date().toISOString(), level: "info", source: "mx", msg: "MX resolved", domain, records: result.records }));
+    mxLogger.info({ domain, records: result.records }, "MX resolved");
     return result;
   } catch (err) {
-    console.error(JSON.stringify({ ts: new Date().toISOString(), level: "error", source: "mx", msg: "MX lookup failed", domain, code: err?.code, error: err?.message }));
+    mxLogger.error(
+      { domain, code: err?.code, error: err?.message },
+      "MX lookup failed"
+    );
     if (["ENODATA", "ENOTFOUND", "NXDOMAIN", "SERVFAIL"].includes(err?.code)) {
       return {
         accepts_mail: false,
