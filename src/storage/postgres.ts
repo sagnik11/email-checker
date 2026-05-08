@@ -225,6 +225,20 @@ class PostgresStorage {
     return res.rows.map((r) => r.result);
   }
 
+  async getV1ResultsByCanonical(jobId) {
+    const res = await this.pool.query(
+      `SELECT payload->'input'->>'to_email' AS canonical, result, error
+       FROM v1_task_result WHERE job_id = $1`,
+      [jobId]
+    );
+    const map = new Map();
+    for (const row of res.rows) {
+      const key = row.canonical == null ? "" : String(row.canonical).toLowerCase();
+      map.set(key, { result: row.result, error: row.error });
+    }
+    return map;
+  }
+
   async countV0Processed(jobId) {
     const res = await this.pool.query(
       `SELECT COUNT(*)::int AS count FROM email_results WHERE job_id = $1`,
