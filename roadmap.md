@@ -56,7 +56,7 @@ Activate the already-accepted webhook field so downstream systems can react to t
   - Header: `X-Webhook-Signature`
   - Secret source: `config.ts`
 - Retry strategy:
-  - 3 attempts
+  - 4 attempts (1 initial + 3 retries)
   - Backoff schedule: 1s, 5s, 30s
 - On terminal failure, emit structured stdout log with endpoint, job/task identifiers, and final error.
 

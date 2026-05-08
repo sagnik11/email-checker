@@ -455,9 +455,9 @@ Existing receivers built before this change continue to work — `result` and `e
 
 #### Delivery guarantees
 
-- **Retries**: 3 attempts total. Backoff between attempts is `1s`, `5s`, `30s`. Network errors, HTTP 5xx, and HTTP 429 are retried. HTTP 2xx ends the loop with success. Other 4xx responses are treated as terminal failures.
+- **Retries**: 4 attempts total (1 initial + 3 retries). Backoff between attempts is `1s`, `5s`, `30s`. Network errors, HTTP 5xx, and HTTP 429 are retried. HTTP 2xx ends the loop with success. Other 4xx responses are treated as terminal failures.
 - **At-least-once**: if the worker process is killed after delivering the webhook but before acking the queue message, RabbitMQ may redeliver and the webhook may fire again. The `taskId` field can be used to dedupe on the receiver side.
-- **Terminal failure**: when all 3 attempts fail (or a non-retriable status is returned), a single structured JSON line is emitted to the worker's stdout with `event: "webhook_delivery_failed"`, `endpoint`, `taskId`, `jobId`, `email`, `attempts`, `status`, and `error`.
+- **Terminal failure**: when all 4 attempts fail (or a non-retriable status is returned), a single structured JSON line is emitted to the worker's stdout with `event: "webhook_delivery_failed"`, `endpoint`, `taskId`, `jobId`, `email`, `attempts`, `status`, and `error`.
 
 #### Signature verification
 

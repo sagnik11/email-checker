@@ -91,10 +91,11 @@ test("deliverWebhook: retries on 500 then succeeds", async () => {
   assert.equal(logger.lines.length, 0);
 });
 
-test("deliverWebhook: 3x failure logs structured error", async () => {
+test("deliverWebhook: 4x failure logs structured error", async () => {
   const fetchImpl = makeFetchSequence([
     { status: 500 },
     { status: 500 },
+    { status: 502 },
     { status: 503 },
   ]);
   const logger = captureLogger();
@@ -106,12 +107,12 @@ test("deliverWebhook: 3x failure logs structured error", async () => {
     { fetch: fetchImpl, sleep: noopSleep, logger }
   );
 
-  assert.equal(fetchImpl.calls.length, 3);
+  assert.equal(fetchImpl.calls.length, 4);
   assert.equal(logger.lines.length, 1);
   const parsed = JSON.parse(logger.lines[0]);
   assert.equal(parsed.event, "webhook_delivery_failed");
   assert.equal(parsed.endpoint, "http://test.local/hook");
-  assert.equal(parsed.attempts, 3);
+  assert.equal(parsed.attempts, 4);
   assert.equal(parsed.status, 503);
   assert.ok(parsed.taskId);
   assert.deepEqual(parsed.jobId, { kind: "bulk_v1", id: 42 });
@@ -139,6 +140,7 @@ test("deliverWebhook: network errors retry then log", async () => {
     new Error("ECONNREFUSED"),
     new Error("ECONNREFUSED"),
     new Error("ECONNREFUSED"),
+    new Error("ECONNREFUSED"),
   ]);
   const logger = captureLogger();
 
@@ -149,14 +151,15 @@ test("deliverWebhook: network errors retry then log", async () => {
     { fetch: fetchImpl, sleep: noopSleep, logger }
   );
 
-  assert.equal(fetchImpl.calls.length, 3);
+  assert.equal(fetchImpl.calls.length, 4);
   assert.equal(logger.lines.length, 1);
   const parsed = JSON.parse(logger.lines[0]);
   assert.match(parsed.error, /ECONNREFUSED/);
 });
 
-test("deliverWebhook: backoff schedule is 1s,5s before attempts 2 and 3", async () => {
+test("deliverWebhook: backoff schedule is 1s,5s,30s before attempts 2, 3, 4", async () => {
   const fetchImpl = makeFetchSequence([
+    { status: 500 },
     { status: 500 },
     { status: 500 },
     { status: 200 },
@@ -173,7 +176,7 @@ test("deliverWebhook: backoff schedule is 1s,5s before attempts 2 and 3", async 
     { fetch: fetchImpl, sleep: fakeSleep, logger: captureLogger() }
   );
 
-  assert.deepEqual(sleeps, [1000, 5000]);
+  assert.deepEqual(sleeps, [1000, 5000, 30000]);
 });
 
 test("deliverWebhook: skipped when no url", async () => {

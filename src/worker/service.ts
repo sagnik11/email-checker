@@ -3,7 +3,7 @@ const crypto = require("node:crypto");
 const { checkEmail } = require("../checker/checkEmail");
 
 const WEBHOOK_BACKOFF_MS = [1000, 5000, 30000];
-const WEBHOOK_MAX_ATTEMPTS = 3;
+const WEBHOOK_MAX_ATTEMPTS = 4;
 const WEBHOOK_SIGNATURE_HEADER = "x-webhook-signature";
 
 function canonicalizeEmail(value) {
