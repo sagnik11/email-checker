@@ -31,16 +31,19 @@ Sending a welcome email to a bad address wastes resources, hurts deliverability,
 
 | Check | What it does |
 |---|---|
-| **Syntax** | RFC-compliant format validation + typo suggestions |
+| **Syntax** | RFC-compliant format validation + typo suggestions, with full IDN/unicode domain support (e.g. `info@münchen.de`) |
 | **MX DNS** | Confirms the domain actually accepts mail |
 | **SMTP handshake** | Connects directly to the mail server to verify the mailbox exists |
+| **Greylist-aware retry** | Detects 4xx greylist deferrals and re-probes after a delay (worker/bulk flow only) |
+| **Mail-auth posture** | Surfaces SPF presence, DMARC `p=` policy, and discovered DKIM selectors |
+| **Risk score 0–100** | Weighted numeric score alongside the legacy `is_reachable` bucket |
 | **Disposable detection** | Flags throwaway domains (10 minute mail, etc.) |
 | **Role account detection** | Flags `info@`, `noreply@`, `support@`, etc. |
-| **B2C detection** | Identifies consumer providers (Gmail, Outlook, Yahoo) |
+| **B2C detection** | Identifies consumer providers (Gmail, Outlook, Yahoo, plus 50+ free-mail providers) |
 | **Gravatar lookup** | Optional — fetch profile image URL |
 | **HaveIBeenPwned** | Optional — check if the address appears in breach data |
 
-Every check returns a structured JSON result and a single `is_reachable` verdict: `safe`, `risky`, `invalid`, or `unknown`.
+Every check returns a structured JSON result with both a coarse `is_reachable` verdict (`safe` / `risky` / `invalid` / `unknown`) and a fine-grained `risk_score` (0–100).
 
 > 📖 **Docs:** browse the live documentation page at [`/docs.html`](./public/docs.html) once the server is running, or read the machine-readable OpenAPI 3.1 spec at [`/openapi.yaml`](./public/openapi.yaml).
 
@@ -123,10 +126,12 @@ The response is a single flat object — `is_reachable` followed by every detail
 {
   "input": "someone@gmail.com",
   "is_reachable": "safe",
+  "risk_score": 0,
 
   "email_address": "someone@gmail.com",
   "email_username": "someone",
   "email_domain": "gmail.com",
+  "email_domain_unicode": "gmail.com",
   "normalized_email": "someone@gmail.com",
   "is_valid_syntax": true,
   "syntax_suggestion": null,
@@ -136,6 +141,9 @@ The response is a single flat object — `is_reachable` followed by every detail
   "is_b2c_provider": true,
   "gravatar_url": null,
   "has_been_pwned": null,
+  "spf_present": true,
+  "dmarc_policy": "reject",
+  "dkim_selectors_found": ["google"],
 
   "mx_accepts_mail": true,
   "mx_records": ["gmail-smtp-in.l.google.com"],
@@ -263,6 +271,7 @@ Two naming conventions exist:
 | `EMAIL_CHECKER__WORKER__ENABLE` | Enable queue worker mode |
 | `EMAIL_CHECKER__WORKER__RABBITMQ__URL` | RabbitMQ connection string |
 | `EMAIL_CHECKER__WORKER__RABBITMQ__CONCURRENCY` | Worker prefetch count (default `5`) |
+| `EMAIL_CHECKER__SMTP__GREYLIST_RETRY_MS` | Delay before re-probing on a greylist 4xx in worker flow (default `60000`). Inline HTTP requests do not retry regardless. |
 | `EMAIL_CHECKER__STORAGE__POSTGRES__DB_URL` | Postgres connection string |
 | `PORT` | Alias for `http_port` (Heroku / Fly / Render compatible) |
 | `EMAIL_CHECKER_SMTP_PORT` | SMTP probe port. Wins over body-level `smtp_port`. Set to `587` when port 25 is blocked. |

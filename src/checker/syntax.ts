@@ -1,4 +1,5 @@
 // @ts-nocheck
+const url = require("node:url");
 const IsEmail = require("isemail");
 const { levenshtein } = require("./util");
 
@@ -11,6 +12,21 @@ const MAIL_PROVIDERS = [
   "icloud.com",
   "yandex.com",
 ];
+
+function toAsciiDomain(domain) {
+  const raw = String(domain || "").trim();
+  if (!raw) return "";
+  // Pure-ASCII domains short-circuit (avoids Node's URL ASCII-validation quirks)
+  if (/^[\x00-\x7f]+$/.test(raw)) {
+    return raw.toLowerCase();
+  }
+  try {
+    const ascii = url.domainToASCII(raw);
+    return ascii ? ascii.toLowerCase() : "";
+  } catch (_) {
+    return "";
+  }
+}
 
 function normalizeEmail(username, domain) {
   const d = String(domain || "").toLowerCase();
@@ -30,6 +46,7 @@ function invalidSyntaxDetails() {
   return {
     address: null,
     domain: "",
+    domain_unicode: "",
     is_valid_syntax: false,
     username: "",
     normalized_email: null,
@@ -45,17 +62,31 @@ function checkSyntax(emailAddress) {
     return invalidSyntaxDetails();
   }
 
-  const [username, domain] = email.split("@");
-  if (!username || !domain) {
+  const atIdx = email.lastIndexOf("@");
+  if (atIdx <= 0 || atIdx === email.length - 1) {
     return invalidSyntaxDetails();
   }
 
+  const username = email.slice(0, atIdx);
+  const domainUnicode = email.slice(atIdx + 1);
+  const domainAscii = toAsciiDomain(domainUnicode);
+
+  if (!domainAscii) {
+    return invalidSyntaxDetails();
+  }
+
+  // Canonical address used everywhere downstream (DNS, SMTP, cache key) is the
+  // ASCII-domain form. The original unicode form is preserved separately for
+  // display in `domain_unicode`.
+  const canonicalAddress = `${username}@${domainAscii}`;
+
   return {
-    address: email,
-    domain,
+    address: canonicalAddress,
+    domain: domainAscii,
+    domain_unicode: domainUnicode,
     is_valid_syntax: true,
     username,
-    normalized_email: normalizeEmail(username, domain),
+    normalized_email: normalizeEmail(username, domainAscii),
     suggestion: null,
   };
 }
@@ -78,4 +109,5 @@ module.exports = {
   checkSyntax,
   getSimilarMailProvider,
   normalizeEmail,
+  toAsciiDomain,
 };

@@ -25,3 +25,17 @@ test("suggest provider for close typo", () => {
   getSimilarMailProvider(syntax);
   assert.equal(syntax.suggestion, "test@gmail.com");
 });
+
+test("normalizes IDN domain to punycode (xn--) form", () => {
+  const syntax = checkSyntax("info@münchen.de");
+  assert.equal(syntax.is_valid_syntax, true);
+  assert.equal(syntax.domain, "xn--mnchen-3ya.de");
+  assert.equal(syntax.domain_unicode, "münchen.de");
+  assert.equal(syntax.address, "info@xn--mnchen-3ya.de");
+});
+
+test("ASCII domain stays ASCII and exposes unicode mirror", () => {
+  const syntax = checkSyntax("foo@bar.com");
+  assert.equal(syntax.domain, "bar.com");
+  assert.equal(syntax.domain_unicode, "bar.com");
+});

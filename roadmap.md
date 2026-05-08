@@ -315,41 +315,45 @@ Expose pipeline stage visibility to improve user trust and UX.
 
 ---
 
-### 2.6 Verification Accuracy Upgrades
+### 2.6 Verification Accuracy Upgrades ✅ Shipped
 
-#### 2.6.a SPF/DKIM/DMARC Presence Signals
+#### 2.6.a SPF/DKIM/DMARC Presence Signals ✅
 
-- Add TXT-based checks in `src/checker/misc.ts`.
-- Surface:
-  - `spf_present`
-  - `dmarc_policy`
-  - `dkim_selectors_found`
+- TXT-based checks added in `src/checker/misc.ts` (`checkMailAuth`).
+- Surfaced response fields:
+  - `spf_present` (boolean)
+  - `dmarc_policy` (`none` / `quarantine` / `reject` / `null`)
+  - `dkim_selectors_found` (string[] — probes 12 common selectors)
 
-#### 2.6.b Greylisting-Aware SMTP Retry
+#### 2.6.b Greylisting-Aware SMTP Retry ✅
 
-- In `src/checker/smtp.ts`, detect likely greylist 4xx on RCPT.
-- Perform one delayed re-probe (~60s) in worker flow only (not inline HTTP).
+- `isGreylistError(code, message)` in `src/checker/smtpParser.ts` detects 421/450/451/452 greylist deferrals.
+- In worker flow, `checkSmtp()` waits `smtp.greylist_retry_ms` (default 60000) and re-probes once.
+- Inline HTTP path is unchanged — worker-only behavior is gated by `allowGreylistRetry: true` passed from `src/worker/service.ts`.
+- New config knob: `smtp.greylist_retry_ms` (env: `EMAIL_CHECKER__SMTP__GREYLIST_RETRY_MS`).
+- New `smtp_error_description` value: `Greylisted`.
 
-#### 2.6.c IDN/Unicode Email Support
+#### 2.6.c IDN/Unicode Email Support ✅
 
-- Normalize domains with `url.domainToASCII` in `src/checker/syntax.ts`.
-- Preserve canonical email normalization behavior for cache keying and dedupe.
+- Domains normalized with `url.domainToASCII` in `src/checker/syntax.ts`.
+- New `email_domain_unicode` response field preserves the original unicode form for display.
+- `email_domain` and `normalized_email` use the ASCII (punycode) form so they remain stable cache/dedupe keys.
 
-#### 2.6.d Free-Mail Provider Expansion
+#### 2.6.d Free-Mail Provider Expansion ✅
 
-- Add 30+ providers to `src/data/rules.json`.
-- Ensure provider classifier in `src/checker/provider.ts` consumes expanded set.
+- New `providers` section in `src/data/rules.json` with 50+ `by_domain` entries (Fastmail, Zoho, GMX, Mail.ru, Yandex, Tutanota, Hey, Proton, AOL, QQ, NetEase, Naver, Daum, Rediff, Seznam, WP/Onet/Interia, Libero/Tiscali, Bluewin, Web.de, T-Online, Laposte, Orange, Free, SFR, …) plus `by_mx_suffix` entries.
+- `src/checker/provider.ts` exposes `providerFromMx` (preserves hardcoded matchers, falls through to rules.json `by_mx_suffix`) and a new `providerFromDomain` used as a fallback in `checkEmail.ts` when the MX classifier returns `everything_else`.
 
-#### 2.6.e Risk Score 0-100
+#### 2.6.e Risk Score 0-100 ✅
 
-- Move from coarse bucket-only output to weighted numeric score.
-- Keep current bucket output as derived compatibility field.
+- New `risk_score` response field — weighted additive model, clamped to `[0, 100]`.
+- Legacy `is_reachable` bucket is preserved unchanged for backward compatibility (computed independently by the existing `calculateReachable()` rules).
 
 **Acceptance Criteria (2.6 overall)**
 
-- New fields are additive and documented.
-- Existing clients still function with legacy bucket.
-- Accuracy changes are measurable on curated test fixtures.
+- ✅ New fields are additive and documented (README, API_DOCUMENTATION.md, openapi.yaml).
+- ✅ Existing clients still function with legacy `is_reachable` bucket — semantics unchanged.
+- Accuracy changes are measurable on curated test fixtures (model exposed via `calculateRiskScore` export — exercised by `test/risk.test.ts` and `test/parser.test.ts`).
 
 ---
 

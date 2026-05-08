@@ -342,6 +342,10 @@ components:
         - `invalid` if the mailbox is not deliverable, the SMTP server cannot
           be reached, or the account is disabled
         - `safe` otherwise
+
+        Preserved as the legacy bucket for backward compatibility. Newer
+        clients may prefer the additive `risk_score` (0–100) field for
+        finer-grained thresholding.
       enum: [safe, risky, invalid, unknown]
 
     ProxyConfig:
@@ -444,9 +448,11 @@ components:
       required:
         - input
         - is_reachable
+        - risk_score
         - email_address
         - email_username
         - email_domain
+        - email_domain_unicode
         - normalized_email
         - is_valid_syntax
         - syntax_suggestion
@@ -455,6 +461,9 @@ components:
         - is_b2c_provider
         - gravatar_url
         - has_been_pwned
+        - spf_present
+        - dmarc_policy
+        - dkim_selectors_found
         - mx_accepts_mail
         - mx_records
         - mx_preferred_host
@@ -488,18 +497,39 @@ components:
           description: The exact `to_email` value submitted (trimmed).
         is_reachable:
           $ref: "#/components/schemas/Reachability"
+        risk_score:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: |
+            Weighted numeric risk score in `[0, 100]`. `0` = clean / deliverable,
+            `100` = invalid or undeliverable. Computed independently from
+            `is_reachable`, so existing clients can keep using the bucket while
+            new clients can apply custom thresholds. Rough mapping:
+            `0–20` ≈ safe, `21–50` ≈ risky-leaning, `51–80` ≈ likely
+            undeliverable, `81–100` ≈ invalid.
 
         # Syntax
         email_address:
           type: string
           nullable: true
-          description: Trimmed email address. Null when syntax is invalid.
+          description: |
+            Trimmed email address (canonical ASCII form for IDN inputs).
+            Null when syntax is invalid.
         email_username:
           type: string
           description: Local part (before `@`).
         email_domain:
           type: string
-          description: Domain part (after `@`).
+          description: |
+            Domain part (after `@`), ASCII form. For IDN domains this is the
+            `xn--` punycode form (e.g. `münchen.de` → `xn--mnchen-3ya.de`).
+            Used for DNS, SMTP, and as a stable cache/dedupe key.
+        email_domain_unicode:
+          type: string
+          description: |
+            Original unicode form of the domain as submitted, suitable for
+            display. Equal to `email_domain` for ASCII-only domains.
         normalized_email:
           type: string
           nullable: true
@@ -537,6 +567,28 @@ components:
           type: boolean
           nullable: true
           description: Whether the address appears in HIBP breach data. Null when unchecked or API errored.
+        spf_present:
+          type: boolean
+          description: |
+            Domain publishes a `v=spf1` SPF record at the apex (TXT lookup).
+        dmarc_policy:
+          type: string
+          enum: [none, quarantine, reject]
+          nullable: true
+          description: |
+            Parsed `p=` tag from the `_dmarc.<domain>` TXT record. `null` means
+            the domain has no DMARC record or the record is malformed.
+        dkim_selectors_found:
+          type: array
+          items: { type: string }
+          description: |
+            Common DKIM selectors that responded with a DKIM-flavored TXT
+            record at `<selector>._domainkey.<domain>`. Empty array means
+            none of the probed selectors (`default`, `google`, `selector1`,
+            `selector2`, `k1`, `k2`, `mail`, `dkim`, `s1`, `s2`, `mandrill`,
+            `mxvault`) returned a hit. Probabilistic — DKIM doesn't publish
+            selector lists, so a domain may use DKIM with a custom selector
+            that we don't probe.
 
         # MX
         mx_accepts_mail:
@@ -594,7 +646,12 @@ components:
           nullable: true
           description: |
             Specific descriptor when the parser classifies the error. Common
-            values: `IpBlacklisted`, `NeedsRDNS`. Otherwise null.
+            values: `IpBlacklisted`, `NeedsRDNS`, `Greylisted`. `Greylisted`
+            indicates the MX returned a 4xx greylist deferral; in worker mode
+            (async/bulk) the worker waits ~60s (configurable via
+            `smtp.greylist_retry_ms`) and re-probes once before surfacing
+            this. The inline single-check HTTP path returns immediately to
+            keep request latency bounded. Otherwise null.
 
         # Debug
         backend_name:

@@ -46,7 +46,10 @@ async function sendCommercialTrial(config, email, workerOutput) {
 
 async function processCheckEmailTask(task, config) {
   try {
-    const result = await checkEmail(task.input);
+    const result = await checkEmail(task.input, {
+      allowGreylistRetry: true,
+      greylistRetryMs: config?.smtp?.greylist_retry_ms,
+    });
     await sendWebhook(task, result);
 
     const workerOutput = {

@@ -7,6 +7,7 @@ const { Rule, hasRule, normalizeMxHost } = require("./rules");
 const {
   isDisabledAccountError,
   isFullInboxError,
+  isGreylistError,
   isInvalidError,
   isIpBlacklistedError,
   isNeedsRdnsError,
@@ -387,6 +388,22 @@ async function checkSmtpOnce(input) {
           is_deliverable: true,
           is_disabled: false,
         };
+      } else if (isGreylistError(rcpt.code, rcpt.message)) {
+        smtpLog("info", "RCPT greylisted", { code: rcpt.code, message: rcpt.message });
+        return {
+          smtp: buildDefaultSmtpDetails(),
+          smtpError: toSmtpError("Greylisted", rcpt.message, "Greylisted"),
+          greylistDetected: true,
+          debug: {
+            verif_method: {
+              type: "smtp",
+              host: normalizeMxHost(mxHost),
+              smtp_port: smtpPort,
+              provider,
+              method: chosenMethod || "smtp",
+            },
+          },
+        };
       } else {
         const parsed = classifySmtpErrorMessage(rcpt.message, toEmail);
         smtpLog("info", "RCPT classified", { parsed });
@@ -445,13 +462,19 @@ async function checkSmtpOnce(input) {
 
 async function checkSmtp(config) {
   const retries = Math.max(1, Number(config.retries || 1));
+  const allowGreylistRetry = Boolean(config.allowGreylistRetry);
+  const greylistRetryMs = Math.max(0, Number(config.greylistRetryMs || 60000));
 
   smtpLog("info", "checkSmtp entry", {
     to_email: config.toEmail,
     mx_host: config.mxHost,
     smtp_port: config.smtpPort,
     retries,
+    allow_greylist_retry: allowGreylistRetry,
+    greylist_retry_ms: greylistRetryMs,
   });
+
+  let greylistRetryUsed = false;
 
   let lastResult = null;
   for (let attempt = 1; attempt <= retries; attempt += 1) {
@@ -461,6 +484,29 @@ async function checkSmtp(config) {
       if (!result.smtpError) {
         smtpLog("info", `attempt ${attempt} succeeded`, { to_email: config.toEmail });
         return result;
+      }
+
+      // Worker flow: if RCPT greylisted, sleep and re-probe once.
+      if (result.greylistDetected && allowGreylistRetry && !greylistRetryUsed) {
+        greylistRetryUsed = true;
+        smtpLog("info", "greylist re-probe scheduled", {
+          to_email: config.toEmail,
+          delay_ms: greylistRetryMs,
+        });
+        await new Promise((resolve) => setTimeout(resolve, greylistRetryMs));
+        const retryResult = await checkSmtpOnce(config);
+        if (!retryResult.smtpError) {
+          smtpLog("info", "greylist re-probe succeeded", { to_email: config.toEmail });
+          return retryResult;
+        }
+        // Re-probe still failed; tag and surface so callers can see it was a greylist
+        retryResult.greylistRetried = true;
+        smtpLog("info", "greylist re-probe still failing", { error: retryResult.smtpError });
+        lastResult = retryResult;
+        if (retryResult.smtpError.description || attempt === retries) {
+          return retryResult;
+        }
+        continue;
       }
 
       smtpLog("info", `attempt ${attempt} smtp error`, { error: result.smtpError });

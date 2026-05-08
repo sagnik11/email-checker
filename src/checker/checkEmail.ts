@@ -4,7 +4,7 @@ const { checkMx } = require("./mx");
 const { checkMisc } = require("./misc");
 const { Rule, hasRule } = require("./rules");
 const { buildDefaultSmtpDetails, checkSmtp } = require("./smtp");
-const { providerFromMx } = require("./provider");
+const { providerFromDomain, providerFromMx } = require("./provider");
 const { durationFromMs } = require("./util");
 
 function flattenSyntax(syntax) {
@@ -12,6 +12,7 @@ function flattenSyntax(syntax) {
     email_address: syntax.address,
     email_username: syntax.username,
     email_domain: syntax.domain,
+    email_domain_unicode: syntax.domain_unicode || syntax.domain || "",
     normalized_email: syntax.normalized_email,
     is_valid_syntax: syntax.is_valid_syntax,
     syntax_suggestion: syntax.suggestion,
@@ -26,6 +27,9 @@ function flattenMisc(misc) {
       is_b2c_provider: false,
       gravatar_url: null,
       has_been_pwned: null,
+      spf_present: false,
+      dmarc_policy: null,
+      dkim_selectors_found: [],
     };
   }
   return {
@@ -34,6 +38,11 @@ function flattenMisc(misc) {
     is_b2c_provider: misc.is_b2c,
     gravatar_url: misc.gravatar_url,
     has_been_pwned: misc.haveibeenpwned,
+    spf_present: Boolean(misc.spf_present),
+    dmarc_policy: misc.dmarc_policy ?? null,
+    dkim_selectors_found: Array.isArray(misc.dkim_selectors_found)
+      ? misc.dkim_selectors_found
+      : [],
   };
 }
 
@@ -123,6 +132,58 @@ function calculateReachable(misc, smtpValue, smtpError) {
   return "safe";
 }
 
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+// Weighted additive risk score in [0, 100]. Higher = more risky / less likely
+// to deliver. The bucket field `is_reachable` is computed independently by
+// `calculateReachable()` so this score is purely additive for callers that
+// want a finer-grained signal.
+function calculateRiskScore({ syntax, misc, mx, smtpValue, smtpError }) {
+  if (syntax && syntax.is_valid_syntax === false) {
+    return 100;
+  }
+
+  let score = 0;
+
+  if (mx) {
+    if (mx.lookupError) score += 60;
+    if (Array.isArray(mx.records) && mx.records.length === 0) score += 90;
+  }
+
+  if (smtpError) {
+    const description = smtpError.description;
+    if (description === "Greylisted") {
+      score += 25;
+    } else {
+      score += 35;
+    }
+  } else if (smtpValue) {
+    if (smtpValue.is_deliverable === false) score += 80;
+    if (smtpValue.is_disabled) score += 70;
+    if (smtpValue.has_full_inbox) score += 30;
+    if (smtpValue.is_catch_all) score += 25;
+    if (smtpValue.can_connect_smtp === false) score += 40;
+  }
+
+  if (misc) {
+    if (misc.is_disposable) score += 40;
+    if (misc.is_role_account) score += 15;
+    if (misc.haveibeenpwned === true) score += 10;
+    if (misc.spf_present === false) score += 5;
+    if (!misc.dmarc_policy || misc.dmarc_policy === "none") score += 5;
+    if (
+      Array.isArray(misc.dkim_selectors_found) &&
+      misc.dkim_selectors_found.length === 0
+    ) {
+      score += 3;
+    }
+  }
+
+  return clamp(Math.round(score), 0, 100);
+}
+
 function resolveSmtpTimeoutMs(input, hasTimeoutRule) {
   let timeoutMs;
 
@@ -163,9 +224,11 @@ function buildResult({
   smtpError,
   debug,
 }) {
+  const riskScore = calculateRiskScore({ syntax, misc, mx, smtpValue, smtpError });
   return {
     input,
     is_reachable: isReachable,
+    risk_score: riskScore,
     ...flattenSyntax(syntax),
     ...flattenMisc(misc),
     ...flattenMx(mx),
@@ -174,9 +237,14 @@ function buildResult({
   };
 }
 
-async function checkEmail(rawInput = {}) {
+async function checkEmail(rawInput = {}, options = {}) {
   const startTimeMs = Date.now();
   const startTime = new Date(startTimeMs);
+  const allowGreylistRetry = Boolean(options.allowGreylistRetry);
+  const greylistRetryMs =
+    typeof options.greylistRetryMs === "number" && options.greylistRetryMs >= 0
+      ? options.greylistRetryMs
+      : 60000;
 
   // Env var always wins so cloud providers that block port 25 can override via EMAIL_CHECKER_SMTP_PORT=587
   const effectiveSmtpPort = Number(process.env.EMAIL_CHECKER_SMTP_PORT || rawInput.smtp_port || 25);
@@ -301,7 +369,14 @@ async function checkEmail(rawInput = {}) {
   const mxHost = mxResult.preferred.exchange;
   const hasTimeoutRule = hasRule(syntax.domain, mxHost, Rule.SMTP_TIMEOUT_45S);
 
-  const provider = providerFromMx(mxHost);
+  const mxProvider = providerFromMx(mxHost);
+  // When MX classifier finds nothing, fall back to a domain-based lookup
+  // (rules.json `providers.by_domain`) so freemail providers without a unique
+  // MX suffix still get classified.
+  const provider =
+    mxProvider === "everything_else"
+      ? providerFromDomain(syntax.domain) || mxProvider
+      : mxProvider;
   const chosenMethod = chosenMethodForProvider(provider, input);
 
   const smtpResult = await checkSmtp({
@@ -316,6 +391,8 @@ async function checkEmail(rawInput = {}) {
     retries: input.retries,
     provider,
     chosenMethod,
+    allowGreylistRetry,
+    greylistRetryMs,
   });
 
   if (smtpResult.smtpError) {
@@ -355,5 +432,7 @@ async function checkEmail(rawInput = {}) {
 }
 
 module.exports = {
+  calculateReachable,
+  calculateRiskScore,
   checkEmail,
 };
