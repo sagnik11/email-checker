@@ -80,7 +80,7 @@ Most teams reach for ZeroBounce, NeverBounce, or similar SaaS tools by default. 
 
 ## Features
 
-- **HTTP API** — single check (`POST /v1/check_email`) and async bulk processing (`POST /v1/bulk`)
+- **HTTP API** — single check (`POST /v1/check_email`) and async bulk processing (`POST /v1/bulk`) with case-insensitive deduplication so each unique address is checked only once per job
 - **CLI** — `email-validator check someone@gmail.com` from your terminal
 - **Web UI** — browser-based quick-check page served at `/`
 - **Queue worker** — RabbitMQ-backed async processing for large lists

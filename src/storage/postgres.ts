@@ -34,6 +34,8 @@ CREATE TABLE IF NOT EXISTS v1_task_result (
 );
 
 CREATE INDEX IF NOT EXISTS idx_v1_task_result_job_id ON v1_task_result (job_id);
+
+ALTER TABLE v1_bulk_job ADD COLUMN IF NOT EXISTS input_map JSONB;
 `;
 
 class PostgresStorage {
@@ -62,10 +64,10 @@ class PostgresStorage {
     return res.rows[0].id;
   }
 
-  async createV1BulkJob(totalRecords) {
+  async createV1BulkJob(totalRecords, inputMap = null) {
     const res = await this.pool.query(
-      `INSERT INTO v1_bulk_job (total_records) VALUES ($1) RETURNING id`,
-      [totalRecords]
+      `INSERT INTO v1_bulk_job (total_records, input_map) VALUES ($1, $2) RETURNING id`,
+      [totalRecords, inputMap === null ? null : JSON.stringify(inputMap)]
     );
     return res.rows[0].id;
   }
@@ -108,7 +110,7 @@ class PostgresStorage {
 
   async getV1BulkJob(jobId) {
     const res = await this.pool.query(
-      `SELECT id, created_at, total_records FROM v1_bulk_job WHERE id = $1 LIMIT 1`,
+      `SELECT id, created_at, total_records, input_map FROM v1_bulk_job WHERE id = $1 LIMIT 1`,
       [jobId]
     );
     return res.rows[0] || null;
@@ -178,6 +180,8 @@ class PostgresStorage {
     const row = agg.rows[0];
     const totalProcessed = Number(row.total_processed || 0);
     const totalRecords = Number(job.total_records || 0);
+    const inputMap = Array.isArray(job.input_map) ? job.input_map : null;
+    const totalInputs = inputMap ? inputMap.length : totalRecords;
 
     return {
       job_id: Number(job.id),
@@ -186,6 +190,7 @@ class PostgresStorage {
         totalProcessed < totalRecords || !row.finished_at
           ? null
           : new Date(row.finished_at).toISOString(),
+      total_inputs: totalInputs,
       total_records: totalRecords,
       total_processed: totalProcessed,
       summary: {

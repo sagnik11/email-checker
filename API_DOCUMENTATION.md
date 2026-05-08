@@ -323,18 +323,32 @@ The worker POSTs `{ "result": <CheckEmailResponse>, "extra": <any | null> }` to 
 }
 ```
 
+Duplicate addresses are deduplicated case-insensitively (after trimming surrounding whitespace) before tasks are dispatched, so each unique address is only checked once. The original input list — including casing, whitespace, and duplicates — is preserved on the job and replayed in the results endpoint, so the output still contains exactly one row per submitted input in submission order.
+
 ```bash
 curl -X POST "$BASE_URL/v1/bulk" \
   -H "Content-Type: application/json" \
   -H "x-api-secret: YOUR_SECRET" \
   -d '{
-    "input": ["alice@example.com", "bob@example.com", "invalid@nodomain.xyz"]
+    "input": ["Alice@example.com", "alice@example.com", "bob@example.com"]
   }'
 ```
 
 ```json
-{ "job_id": 42 }
+{
+  "job_id": 42,
+  "total_inputs": 3,
+  "unique_inputs": 2,
+  "deduplicated": 1
+}
 ```
+
+| Field | Description |
+|---|---|
+| `job_id` | Identifier used for polling and result fetching |
+| `total_inputs` | Total number of addresses submitted in the request body |
+| `unique_inputs` | Number of unique addresses after case-insensitive deduplication; this is the number of SMTP/MX checks the worker actually performs |
+| `deduplicated` | `total_inputs - unique_inputs`; how many duplicate rows were collapsed |
 
 #### Poll job progress
 
@@ -345,7 +359,25 @@ curl "$BASE_URL/v1/bulk/42" \
   -H "x-api-secret: YOUR_SECRET"
 ```
 
-Returns current progress (total, processed, failed counts and status).
+Returns current progress. `total_inputs` is the size of the original submission, `total_records` is the number of unique addresses that the worker checks, and `total_processed` is how many of those unique checks have completed. The job flips to `completed` once `total_processed == total_records`.
+
+```json
+{
+  "job_id": 42,
+  "created_at": "2026-05-08T10:00:00.000Z",
+  "finished_at": null,
+  "total_inputs": 3,
+  "total_records": 2,
+  "total_processed": 1,
+  "summary": {
+    "total_safe": 1,
+    "total_risky": 0,
+    "total_invalid": 0,
+    "total_unknown": 0
+  },
+  "job_status": "running"
+}
+```
 
 #### Fetch results
 
@@ -369,6 +401,8 @@ curl "$BASE_URL/v1/bulk/42/results?format=csv" \
   -H "x-api-secret: YOUR_SECRET" \
   -o results.csv
 ```
+
+The result list contains exactly one row per address in the original submission, in submission order, with the `input` field set to the address as it was sent (preserving case and whitespace). When duplicates were collapsed, each duplicate row is reconstructed from the single underlying check, so `is_reachable` and the rest of the fields are identical across copies. `limit` and `offset` page over this expanded list.
 
 ---
 

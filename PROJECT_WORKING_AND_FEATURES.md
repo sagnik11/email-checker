@@ -61,6 +61,8 @@ See [`API_DOCUMENTATION.md`](./API_DOCUMENTATION.md) for the full per-field refe
 
 Requires: worker mode + RabbitMQ + Postgres. Submit a list of addresses, poll for progress, retrieve paginated JSON or a full CSV export.
 
+The submitted list is deduplicated case-insensitively (after trimming whitespace) before tasks are published, so each unique address is only checked once per job. The original input list is persisted on the `v1_bulk_job` row and replayed at result-fetch time, so the JSON / CSV output still contains exactly one row per submitted input — same casing, same order, same multiplicity. The `POST /v1/bulk` response surfaces `total_inputs`, `unique_inputs`, and `deduplicated` so callers can see how much work was saved.
+
 ### Queue Worker
 
 - Queue: `check_email` (RabbitMQ)
@@ -73,7 +75,7 @@ Requires: worker mode + RabbitMQ + Postgres. Submit a list of addresses, poll fo
 
 `src/storage/postgres.ts` auto-migrates two tables on startup (`MIGRATION_SQL`):
 
-- `v1_bulk_job` — `id`, `created_at`, `total_records`.
+- `v1_bulk_job` — `id`, `created_at`, `total_records` (count of unique addresses checked), `input_map` (`jsonb` — the original submitted list, used to expand results back to one row per input).
 - `v1_task_result` — `id`, `job_id`, `created_at`, `result` (`jsonb` — the full `CheckEmailResponse`), `extra` (`jsonb` — opaque metadata), `error` (text — populated when a task threw).
 
 Aggregate progress (`safe_count`, `risky_count`, `invalid_count`, `unknown_count`, `total_processed`) is computed on the fly from `v1_task_result` — no separate counter table to keep in sync.
@@ -180,11 +182,12 @@ Throttle is checked before either path.
 
 ### `POST /v1/bulk`
 
-1. Creates a `v1_bulk_job` record in Postgres
-2. Enqueues each address as a low-priority task
-3. Returns `job_id` immediately
+1. Deduplicates the submitted addresses case-insensitively via `dedupeEmails()` in `src/worker/service.ts`
+2. Creates a `v1_bulk_job` row in Postgres, persisting the original input list as `input_map` and `total_records = uniqueEmails.length`
+3. Enqueues one low-priority task per unique address with the canonicalized (lowercased + trimmed) `to_email`
+4. Returns `{ job_id, total_inputs, unique_inputs, deduplicated }` immediately
 
-Results become available as the worker processes tasks.
+Results become available as the worker processes tasks. `GET /v1/bulk/:id/results` re-expands the unique results back to one row per submitted input by walking `input_map` in original order, preserving the originally-submitted casing in each row's `input` field.
 
 ---
 

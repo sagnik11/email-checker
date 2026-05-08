@@ -12,6 +12,7 @@ const { checkEmail } = require("../checker/checkEmail");
 const { mapRequestToCheckInput } = require("./requestMapper");
 const { badRequest, internalError } = require("./errors");
 const { publishTask, MAX_QUEUE_PRIORITY } = require("../worker/queue");
+const { dedupeEmails, canonicalizeEmail } = require("../worker/service");
 
 function resolvePublicDir() {
   const candidates = [
@@ -362,8 +363,18 @@ function createApp(runtime) {
     }
 
     try {
-      const jobId = await runtime.storage.createV1BulkJob(req.body.input.length);
-      for (const toEmail of req.body.input) {
+      const { uniqueEmails, originalInputs } = dedupeEmails(req.body.input);
+
+      if (uniqueEmails.length === 0) {
+        return badRequest(res, "Empty input");
+      }
+
+      const jobId = await runtime.storage.createV1BulkJob(
+        uniqueEmails.length,
+        originalInputs
+      );
+
+      for (const toEmail of uniqueEmails) {
         const input = mapRequestToCheckInput(
           { to_email: toEmail },
           runtime.config,
@@ -379,7 +390,12 @@ function createApp(runtime) {
         });
       }
 
-      return res.json({ job_id: jobId });
+      return res.json({
+        job_id: jobId,
+        total_inputs: originalInputs.length,
+        unique_inputs: uniqueEmails.length,
+        deduplicated: originalInputs.length - uniqueEmails.length,
+      });
     } catch (err) {
       return internalError(res, err);
     }
@@ -422,11 +438,34 @@ function createApp(runtime) {
 
       const { limit, offset } = parseLimitOffset(req);
       const format = String(req.query.format || "json").toLowerCase();
-      const rows = await runtime.storage.getV1Results(
-        jobId,
-        limit === null ? (format === "json" ? 50 : null) : limit,
-        offset
-      );
+
+      const uniqueResults = await runtime.storage.getV1Results(jobId, null, 0);
+      const inputMap = Array.isArray(job.input_map) ? job.input_map : null;
+
+      let expanded;
+      if (inputMap) {
+        const byCanonical = new Map();
+        for (const result of uniqueResults) {
+          const key = canonicalizeEmail(result?.input);
+          if (!byCanonical.has(key)) {
+            byCanonical.set(key, result);
+          }
+        }
+
+        expanded = inputMap.map((original) => {
+          const result = byCanonical.get(canonicalizeEmail(original));
+          if (!result) return null;
+          return { ...result, input: original };
+        }).filter(Boolean);
+      } else {
+        expanded = uniqueResults;
+      }
+
+      const effectiveLimit =
+        limit === null ? (format === "json" ? 50 : null) : limit;
+      const start = Number(offset) || 0;
+      const end = effectiveLimit === null ? expanded.length : start + Number(effectiveLimit);
+      const rows = expanded.slice(start, end);
 
       if (format === "csv") {
         const csv = stringify(rows.map(mapResultToCsvRow), { header: true });
