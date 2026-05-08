@@ -34,6 +34,17 @@ CREATE TABLE IF NOT EXISTS v1_task_result (
 );
 
 CREATE INDEX IF NOT EXISTS idx_v1_task_result_job_id ON v1_task_result (job_id);
+
+CREATE TABLE IF NOT EXISTS v1_dlq_task (
+  id SERIAL PRIMARY KEY,
+  job_id INTEGER REFERENCES v1_bulk_job(id) ON DELETE CASCADE,
+  payload JSONB NOT NULL,
+  error TEXT,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  dlq_arrived_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_v1_dlq_task_job_id ON v1_dlq_task (job_id);
 `;
 
 class PostgresStorage {
@@ -231,6 +242,65 @@ class PostgresStorage {
   async countV1Processed(jobId) {
     const res = await this.pool.query(
       `SELECT COUNT(*)::int AS count FROM v1_task_result WHERE job_id = $1`,
+      [jobId]
+    );
+    return Number(res.rows[0]?.count || 0);
+  }
+
+  async storeDlqFailure(task, info = {}) {
+    const jobId = task?.job_id?.kind === "bulk_v1" ? task.job_id.id : null;
+    const payload = JSON.stringify(task);
+    const errorText = String(info.error ?? "retry_exhausted");
+    const attempts = Number(info.attempts ?? 0);
+
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        `INSERT INTO v1_dlq_task (job_id, payload, error, attempts) VALUES ($1, $2, $3, $4)`,
+        [jobId, payload, errorText, attempts]
+      );
+      await client.query(
+        `INSERT INTO v1_task_result (payload, job_id, extra, error) VALUES ($1, $2, $3, $4)`,
+        [payload, jobId, JSON.stringify(this.extra), errorText]
+      );
+      await client.query("COMMIT");
+    } catch (err) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (_) {}
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  async getV1Failures(jobId, limit = 50, offset = 0) {
+    const usingLimit = limit !== null && limit !== undefined;
+    const query =
+      `SELECT id, payload, error, attempts, dlq_arrived_at
+       FROM v1_dlq_task
+       WHERE job_id = $1
+       ORDER BY id ` +
+      (usingLimit ? `LIMIT $2 ` : ``) +
+      `OFFSET $${usingLimit ? 3 : 2}`;
+    const params = usingLimit ? [jobId, limit, offset] : [jobId, offset];
+    const res = await this.pool.query(query, params);
+    return res.rows.map((r) => ({
+      id: Number(r.id),
+      payload: r.payload,
+      error: r.error,
+      attempts: Number(r.attempts || 0),
+      dlq_arrived_at:
+        r.dlq_arrived_at instanceof Date
+          ? r.dlq_arrived_at.toISOString()
+          : r.dlq_arrived_at,
+    }));
+  }
+
+  async countV1Failures(jobId) {
+    const res = await this.pool.query(
+      `SELECT COUNT(*)::int AS count FROM v1_dlq_task WHERE job_id = $1`,
       [jobId]
     );
     return Number(res.rows[0]?.count || 0);

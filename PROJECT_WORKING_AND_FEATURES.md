@@ -57,9 +57,9 @@ See [`API_DOCUMENTATION.md`](./API_DOCUMENTATION.md) for the full per-field refe
 
 ### Bulk Verification
 
-`POST /v1/bulk` → `GET /v1/bulk/:id` → `GET /v1/bulk/:id/results`
+`POST /v1/bulk` → `GET /v1/bulk/:id` → `GET /v1/bulk/:id/results` (or `GET /v1/bulk/:id/failures` for retry-exhausted tasks)
 
-Requires: worker mode + RabbitMQ + Postgres. Submit a list of addresses, poll for progress, retrieve paginated JSON or a full CSV export.
+Requires: worker mode + RabbitMQ + Postgres. Submit a list of addresses, poll for progress, retrieve paginated JSON or a full CSV export. Tasks that exceed the retry budget are routed to a dead-letter queue and surfaced via the `/failures` endpoint.
 
 ### Queue Worker
 
@@ -195,13 +195,29 @@ Key files: `src/worker/run.ts`, `src/worker/service.ts`, `src/worker/queue.ts`
 Consumer loop per message:
 
 1. Parse and validate task payload
-2. Apply throttle — nack and discard if over limit
+2. Apply throttle — nack with requeue if over limit (transient; does not consume retry budget)
 3. Execute the check pipeline
 4. On `unknown` SMTP result → requeue once
 5. On other transient failure → requeue once
-6. Persist result to Postgres
-7. If message has `replyTo` / `correlationId` → send RPC reply (single-shot mode)
-8. Ack message
+6. After the second attempt still fails for a bulk task → publish to the dead-letter exchange `dlx.email_check` with `x-last-error` and `x-attempts` headers, then ack
+7. Persist result to Postgres on success (or on second-attempt success/unknown for non-bulk tasks)
+8. If message has `replyTo` / `correlationId` → send RPC reply (single-shot mode)
+9. Ack message
+
+A second consumer drains `dlq.email_check`. For each dead-lettered message it inserts:
+
+- a row into `v1_dlq_task` (the failure log surfaced by `GET /v1/bulk/:id/failures`)
+- a row into `v1_task_result` with the `error` column populated, so `getV1BulkProgress` and `countV1Processed` continue to mark the task as processed and the job can complete.
+
+The `check_email` queue is declared with `deadLetterExchange: "dlx.email_check"` and `deadLetterRoutingKey: "check_email"`. The DLQ uses `nack(requeue=false)` semantics implicitly — the worker chooses to `publish` directly to the DLX so it can attach the human-readable last-error message that AMQP's `x-death` header does not carry.
+
+### Storage tables
+
+| Table | Purpose |
+|---|---|
+| `v1_bulk_job` | One row per bulk job submission |
+| `v1_task_result` | One row per processed task (success or failure) |
+| `v1_dlq_task` | One row per dead-lettered task (retry-budget exhausted) |
 
 ---
 

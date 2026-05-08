@@ -2,9 +2,31 @@
 const { loadConfig } = require("../config");
 const { createStorage } = require("../storage");
 const { ThrottleManager } = require("../throttle");
-const { CHECK_EMAIL_QUEUE, setupRabbitMQ } = require("./queue");
+const {
+  CHECK_EMAIL_QUEUE,
+  DLQ_QUEUE,
+  DLX_EXCHANGE,
+  DLQ_ROUTING_KEY,
+  setupRabbitMQ,
+} = require("./queue");
 const { processCheckEmailTask, taskError } = require("./service");
 const { sendSingleShotReply } = require("./singleShot");
+
+function isBulkTask(task) {
+  return task?.job_id?.kind === "bulk_v1" || task?.job_id?.kind === "bulk_v0";
+}
+
+function publishToDlq(channel, msg, lastError) {
+  channel.publish(DLX_EXCHANGE, DLQ_ROUTING_KEY, msg.content, {
+    contentType: msg.properties?.contentType || "application/json",
+    persistent: true,
+    headers: {
+      ...(msg.properties?.headers || {}),
+      "x-last-error": String(lastError ?? "retry_exhausted"),
+      "x-attempts": 2,
+    },
+  });
+}
 
 async function startWorker(deps) {
   const config = deps?.config || loadConfig();
@@ -53,17 +75,26 @@ async function startWorker(deps) {
 
       const workerOutput = await processCheckEmailTask(task, config);
 
-      if (
-        workerOutput.ok &&
-        workerOutput.result?.is_reachable === "unknown" &&
-        !msg.fields.redelivered
-      ) {
+      const isUnknown =
+        workerOutput.ok && workerOutput.result?.is_reachable === "unknown";
+      const isFailure = !workerOutput.ok;
+      const failedThisAttempt = isUnknown || isFailure;
+
+      if (failedThisAttempt && !msg.fields.redelivered) {
         channel.nack(msg, false, true);
         return;
       }
 
-      if (!workerOutput.ok && !msg.fields.redelivered) {
-        channel.nack(msg, false, true);
+      if (failedThisAttempt && msg.fields.redelivered && isBulkTask(task)) {
+        const lastError = isFailure
+          ? workerOutput.error?.message || "task_failed"
+          : "is_reachable=unknown after retry";
+        try {
+          publishToDlq(channel, msg, lastError);
+        } catch (_) {
+          // ignore publish failures
+        }
+        channel.ack(msg);
         return;
       }
 
@@ -78,6 +109,39 @@ async function startWorker(deps) {
       } catch (_) {
         // ignore storage failures in worker loop
       }
+    },
+    { noAck: false }
+  );
+
+  await channel.consume(
+    DLQ_QUEUE,
+    async (msg) => {
+      if (!msg) return;
+
+      let task;
+      try {
+        task = JSON.parse(msg.content.toString("utf8"));
+      } catch (_) {
+        channel.ack(msg);
+        return;
+      }
+
+      const headers = msg.properties?.headers || {};
+      const lastError = String(headers["x-last-error"] || "retry_exhausted");
+      const attempts = Number(headers["x-attempts"] || 2);
+
+      try {
+        if (typeof storage.storeDlqFailure === "function") {
+          await storage.storeDlqFailure(task, {
+            error: lastError,
+            attempts,
+          });
+        }
+      } catch (_) {
+        // ignore storage failures in DLQ loop
+      }
+
+      channel.ack(msg);
     },
     { noAck: false }
   );

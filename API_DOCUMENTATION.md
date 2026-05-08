@@ -370,6 +370,49 @@ curl "$BASE_URL/v1/bulk/42/results?format=csv" \
   -o results.csv
 ```
 
+#### List failed tasks (DLQ)
+
+**`GET /v1/bulk/:id/failures`**
+
+Returns the bulk-job tasks that exhausted the worker retry budget and were routed to the dead-letter queue. Useful for diagnosing systematic failures (e.g. a malformed input batch or a misconfigured network) and for re-submitting only the failed inputs without re-running the whole job.
+
+Unlike `/results`, this endpoint can be called while the job is still running.
+
+Query parameters:
+
+| Param | Values | Default | Description |
+|---|---|---|---|
+| `limit` | number | `50` | Max rows to return |
+| `offset` | number | `0` | Pagination offset |
+
+```bash
+curl "$BASE_URL/v1/bulk/42/failures?limit=100" \
+  -H "x-api-secret: YOUR_SECRET"
+```
+
+Response:
+
+```json
+{
+  "job_id": 42,
+  "total": 3,
+  "failures": [
+    {
+      "id": 17,
+      "payload": {
+        "input": { "to_email": "broken@example.com" },
+        "job_id": { "kind": "bulk_v1", "id": 42 }
+      },
+      "error": "SMTP connection refused",
+      "attempts": 2,
+      "dlq_arrived_at": "2026-05-08T18:42:11.123Z"
+    }
+  ]
+}
+```
+
+`attempts` is the total number of times the worker tried the task before dead-lettering it (currently `2` — the original delivery plus one requeue).
+
 ---
 
 ## Error Responses

@@ -51,6 +51,16 @@ class NoopStorage {
   async countV1Processed() {
     return 0;
   }
+
+  async storeDlqFailure() {}
+
+  async getV1Failures() {
+    return [];
+  }
+
+  async countV1Failures() {
+    return 0;
+  }
 }
 
 async function createStorage(config) {

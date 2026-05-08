@@ -149,6 +149,8 @@ Establish production observability baseline.
 
 ### 1.5 Dead-Letter Queue for Bulk Failures
 
+**Status: Done.** Implemented via DLX `dlx.email_check` + DLQ `dlq.email_check` declared in `src/worker/queue.ts`, retry-exhaustion path in `src/worker/run.ts`, `v1_dlq_task` table in `src/storage/postgres.ts`, and `GET /v1/bulk/:id/failures` in `src/http/app.ts`.
+
 **Goal**  
 Prevent silent task loss and provide visibility for exceeded retry budgets.
 

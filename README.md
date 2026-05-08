@@ -307,6 +307,9 @@ Full reference: [`API_DOCUMENTATION.md`](./API_DOCUMENTATION.md)
 | `POST` | `/v1/bulk` | Submit a bulk validation job |
 | `GET` | `/v1/bulk/:id` | Poll bulk job progress |
 | `GET` | `/v1/bulk/:id/results` | Fetch results (JSON or CSV) |
+| `GET` | `/v1/bulk/:id/failures` | List tasks that exhausted retries (DLQ) |
+
+> **Note for upgrading operators:** the `check_email` queue is now declared with a dead-letter exchange (`dlx.email_check`). RabbitMQ's `assertQueue` rejects argument changes on a pre-existing queue, so on first start with this build you must drain and delete the existing `check_email` queue once (or start with a fresh broker). The exchange and DLQ are created automatically on worker startup.
 
 ---
 
