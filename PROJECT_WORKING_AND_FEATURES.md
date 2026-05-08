@@ -59,7 +59,9 @@ See [`API_DOCUMENTATION.md`](./API_DOCUMENTATION.md) for the full per-field refe
 
 `POST /v1/bulk` → `GET /v1/bulk/:id` → `GET /v1/bulk/:id/results`
 
-Requires: worker mode + RabbitMQ + Postgres. Submit a list of addresses, poll for progress, retrieve paginated JSON or a full CSV export.
+Requires: worker mode + RabbitMQ + Postgres. Submit a list of addresses, poll for progress, retrieve paginated JSON or a full CSV export. CSV columns mirror the flat JSON keys (`is_reachable`, `email_address`, `is_disposable_email`, `smtp_is_deliverable`, …) — see [`API_DOCUMENTATION.md` → "CSV columns"](./API_DOCUMENTATION.md#csv-columns) for the full list.
+
+The submitted list is deduplicated case-insensitively (after trimming whitespace) before tasks are published, so each unique address is only checked once per job. The original input list is persisted on the `v1_bulk_job` row and replayed at result-fetch time, so the JSON / CSV output still contains exactly one row per submitted input — same casing, same order, same multiplicity. The `POST /v1/bulk` response surfaces `total_inputs`, `unique_inputs`, and `deduplicated` so callers can see how much work was saved.
 
 ### Queue Worker
 
@@ -67,13 +69,13 @@ Requires: worker mode + RabbitMQ + Postgres. Submit a list of addresses, poll fo
 - Single-shot checks get higher priority than bulk jobs
 - Worker applies throttling before processing each message
 - Transient SMTP failures (`unknown`) are requeued once
-- Results are persisted to Postgres and optionally sent to a webhook
+- Results are persisted to Postgres and optionally sent to a webhook (signed with HMAC-SHA256 via `X-Webhook-Signature` when a secret is configured, retried up to 3 times with 1s/5s/30s backoff on 5xx/429/network failures, and structured-logged on terminal failure)
 
 ### Postgres Persistence
 
 `src/storage/postgres.ts` auto-migrates two tables on startup (`MIGRATION_SQL`):
 
-- `v1_bulk_job` — `id`, `created_at`, `total_records`.
+- `v1_bulk_job` — `id`, `created_at`, `total_records` (count of unique addresses checked), `input_map` (`jsonb` — the original submitted list, used to expand results back to one row per input).
 - `v1_task_result` — `id`, `job_id`, `created_at`, `result` (`jsonb` — the full `CheckEmailResponse`), `extra` (`jsonb` — opaque metadata), `error` (text — populated when a task threw).
 
 Aggregate progress (`safe_count`, `risky_count`, `invalid_count`, `unknown_count`, `total_processed`) is computed on the fly from `v1_task_result` — no separate counter table to keep in sync.
@@ -180,11 +182,12 @@ Throttle is checked before either path.
 
 ### `POST /v1/bulk`
 
-1. Creates a `v1_bulk_job` record in Postgres
-2. Enqueues each address as a low-priority task
-3. Returns `job_id` immediately
+1. Deduplicates the submitted addresses case-insensitively via `dedupeEmails()` in `src/worker/service.ts`
+2. Creates a `v1_bulk_job` row in Postgres, persisting the original input list as `input_map` and `total_records = uniqueEmails.length`
+3. Enqueues one low-priority task per unique address with the canonicalized (lowercased + trimmed) `to_email`
+4. Returns `{ job_id, total_inputs, unique_inputs, deduplicated }` immediately
 
-Results become available as the worker processes tasks.
+Results become available as the worker processes tasks. `GET /v1/bulk/:id/results` re-expands the unique results back to one row per submitted input by walking `input_map` in original order, preserving the originally-submitted casing in each row's `input` field.
 
 ---
 
@@ -247,7 +250,7 @@ Use the inline mode for simple self-hosted setups. For high-throughput productio
 - Run as many worker replicas as you need — they share the queue, so adding workers scales horizontally without coordination.
 - Single-shot RPC checks (synchronous `POST /v1/check_email` in worker mode) are published with the highest priority; bulk job tasks use priority 1. The RabbitMQ broker delivers higher priority first.
 - Transient SMTP failures (`unknown`) are requeued once before the result is persisted.
-- Suggested monitoring: queue depth via the RabbitMQ management UI / Prometheus exporter, worker liveness via `GET /health` on each replica, job progress via `GET /v1/bulk/:id` or by querying `v1_task_result` directly.
+- Suggested monitoring: queue depth via the RabbitMQ management UI / Prometheus exporter, process liveness via `GET /health`, dependency readiness via `GET /ready`, and job progress via `GET /v1/bulk/:id` (or by querying `v1_task_result` directly).
 - For verbose SMTP transaction logs, set `SMTP_DEBUG=true` on the worker process — every `EHLO` / `MAIL FROM` / `RCPT TO` / `QUIT` is emitted as a JSON line to stdout.
 
 ---
@@ -287,5 +290,5 @@ Current test coverage:
 - [ ] Run at least one worker replica
 - [ ] Set throttle thresholds appropriate for your traffic
 - [ ] Configure CORS origins if serving a browser frontend
-- [ ] Set up health check monitoring at `GET /health`
+- [ ] Set up liveness monitoring at `GET /health` and readiness monitoring at `GET /ready`
 - [ ] Use a SOCKS5 proxy if your host's outbound port 25 is blocked

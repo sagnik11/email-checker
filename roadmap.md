@@ -79,6 +79,9 @@ Activate the already-accepted webhook field so downstream systems can react to t
 **Goal**  
 Separate process liveness from dependency readiness for reliable orchestration.
 
+**Status**  
+Implemented.
+
 **Implementation**
 
 - Keep `/health` as lightweight process-alive response.
@@ -95,7 +98,12 @@ Separate process liveness from dependency readiness for reliable orchestration.
 
 ---
 
-### 1.3 CSV Export Compatibility Fix
+### 1.3 CSV Export Compatibility Fix ✅
+
+**Status**: Done. `mapResultToCsvRow` in `src/http/app.ts` now reads the flat
+schema produced by `buildResult` in `src/checker/checkEmail.ts`. Per-verdict
+unit tests live in `test/csv-export.test.ts`. CSV columns are documented in
+`API_DOCUMENTATION.md` and `public/openapi.yaml`.
 
 **Goal**  
 Ensure bulk CSV export reflects the current flat result object.
@@ -166,20 +174,23 @@ Prevent silent task loss and provide visibility for exceeded retry budgets.
 
 ---
 
-### 1.6 Bulk Result Deduplication
+### 1.6 Bulk Result Deduplication ✅ (Shipped)
 
 **Goal**  
 Reduce redundant SMTP checks and wasted compute/quota.
 
 **Implementation**
 
-- In `src/worker/service.ts`, dedupe emails case-insensitively before task publish.
-- Preserve mapping so duplicate input rows can still be represented in final export/status.
+- `dedupeEmails()` in `src/worker/service.ts` collapses the submitted list case-insensitively (after trimming whitespace).
+- `/v1/bulk` publishes one task per unique canonical address and persists the original ordered input list on `v1_bulk_job.input_map` (new `jsonb` column).
+- `/v1/bulk/:id/results` re-expands the unique results back to one row per submitted input by walking `input_map`, restoring original casing in each row's `input` field.
+- `POST /v1/bulk` response now includes `total_inputs`, `unique_inputs`, and `deduplicated`. `GET /v1/bulk/:id` exposes `total_inputs` alongside `total_records`.
+- Unit tests live in `test/dedupe.test.ts`.
 
 **Acceptance Criteria**
 
-- Duplicate addresses are checked once per job.
-- Final job output remains user-complete and deterministic.
+- ✅ Duplicate addresses are checked once per job.
+- ✅ Final job output remains user-complete and deterministic.
 
 ---
 
