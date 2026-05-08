@@ -98,6 +98,25 @@ curl -X POST "https://<your-app-name>.fly.dev/v1/check_email" \
 
 ---
 
+## Observability
+
+The service emits structured JSON access logs via `pino-http` and exposes Prometheus metrics on `GET /metrics`. Logs go to stdout, which Fly captures and ships to `flyctl logs`.
+
+Set `LOG_LEVEL` if you want anything other than `info`:
+
+```bash
+flyctl secrets set LOG_LEVEL=debug --app <your-app-name>
+```
+
+> **Important — do not expose `/metrics` to the public internet.** It is unauthenticated. Two safe patterns on Fly:
+>
+> 1. **Private network only.** Have your Prometheus scraper run on the same Fly org and scrape `http://<your-app-name>.internal:8080/metrics` over Fly's 6PN network. Keep the public service mapped to the same `internal_port` but do not advertise `/metrics` publicly.
+> 2. **Auth proxy.** Front the public service with Cloudflare Access (or similar) and add a rule that blocks `/metrics` for unauthenticated callers.
+>
+> A sample Prometheus scrape config lives at [`prometheus.yml`](./prometheus.yml).
+
+---
+
 ## Step 5 — Connect your app
 
 Set these environment variables in any service that calls the Email Validator API:

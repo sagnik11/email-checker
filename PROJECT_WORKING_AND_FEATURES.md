@@ -94,6 +94,12 @@ email-validator worker --config ./backend_config.toml
 
 Served at `/`. Calls `POST /v1/check_email` and displays results in the browser — useful for quick manual checks.
 
+### Observability
+
+- **Structured logs.** `pino` is the application logger; `pino-http` emits one JSON access log per HTTP request with `req.id`, method, URL, status, latency, and (for `/v1/check_email`) the resolved verdict. Set `LOG_LEVEL` to override the default (`info`).
+- **Prometheus metrics.** `prom-client` exposes `GET /metrics` with `check_email_total{verdict}`, `check_email_duration_seconds` (histogram), `bulk_job_active` (gauge), and `smtp_errors_total{reason}`, alongside the default Node process metrics. Reason labels are derived from the existing classifiers in `src/checker/smtpParser.ts` (`invalid`, `full_inbox`, `disabled`, `ip_blacklisted`, `needs_rdns`, `other`).
+- A sample scrape config lives at `prometheus.yml`. The endpoint is unauthenticated — keep it private.
+
 ---
 
 ## Verification Pipeline (single email)

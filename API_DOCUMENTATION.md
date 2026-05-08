@@ -97,6 +97,33 @@ curl "$BASE_URL/version"
 
 ---
 
+### Metrics
+
+**`GET /metrics`**
+
+Returns Prometheus exposition format (text v0.0.4). Unauthenticated — expose only on a private network or behind your auth proxy.
+
+```bash
+curl "$BASE_URL/metrics"
+```
+
+Response headers: `Content-Type: text/plain; version=0.0.4; charset=utf-8`.
+
+Custom metrics:
+
+| Metric | Type | Labels |
+|---|---|---|
+| `check_email_total` | counter | `verdict` ∈ {`safe`, `risky`, `invalid`, `unknown`} |
+| `check_email_duration_seconds` | histogram | — (buckets: 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30) |
+| `bulk_job_active` | gauge | — |
+| `smtp_errors_total` | counter | `reason` ∈ {`invalid`, `full_inbox`, `disabled`, `ip_blacklisted`, `needs_rdns`, `other`} |
+
+Default `process_*` and `nodejs_*` metrics from `prom-client` are also exported.
+
+A sample scrape config lives at [`prometheus.yml`](./prometheus.yml) in the repo root.
+
+---
+
 ### Single Email Validation
 
 **`POST /v1/check_email`**
