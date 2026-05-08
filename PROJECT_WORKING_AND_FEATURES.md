@@ -247,7 +247,7 @@ Use the inline mode for simple self-hosted setups. For high-throughput productio
 - Run as many worker replicas as you need — they share the queue, so adding workers scales horizontally without coordination.
 - Single-shot RPC checks (synchronous `POST /v1/check_email` in worker mode) are published with the highest priority; bulk job tasks use priority 1. The RabbitMQ broker delivers higher priority first.
 - Transient SMTP failures (`unknown`) are requeued once before the result is persisted.
-- Suggested monitoring: queue depth via the RabbitMQ management UI / Prometheus exporter, worker liveness via `GET /health` on each replica, job progress via `GET /v1/bulk/:id` or by querying `v1_task_result` directly.
+- Suggested monitoring: queue depth via the RabbitMQ management UI / Prometheus exporter, process liveness via `GET /health`, dependency readiness via `GET /ready`, and job progress via `GET /v1/bulk/:id` (or by querying `v1_task_result` directly).
 - For verbose SMTP transaction logs, set `SMTP_DEBUG=true` on the worker process — every `EHLO` / `MAIL FROM` / `RCPT TO` / `QUIT` is emitted as a JSON line to stdout.
 
 ---
@@ -287,5 +287,5 @@ Current test coverage:
 - [ ] Run at least one worker replica
 - [ ] Set throttle thresholds appropriate for your traffic
 - [ ] Configure CORS origins if serving a browser frontend
-- [ ] Set up health check monitoring at `GET /health`
+- [ ] Set up liveness monitoring at `GET /health` and readiness monitoring at `GET /ready`
 - [ ] Use a SOCKS5 proxy if your host's outbound port 25 is blocked

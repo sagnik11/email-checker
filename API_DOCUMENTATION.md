@@ -69,7 +69,7 @@ Content-Type: application/json
 
 **`GET /health`**
 
-Returns `200` when the service is running.
+Lightweight liveness probe. Returns `200` when the HTTP process is running.
 
 ```bash
 curl "$BASE_URL/health"
@@ -77,6 +77,31 @@ curl "$BASE_URL/health"
 
 ```json
 { "ok": true }
+```
+
+---
+
+### Readiness Check
+
+**`GET /ready`**
+
+Dependency readiness probe for orchestration. Returns:
+
+- `200` only when both Postgres and RabbitMQ are reachable
+- `503` when either dependency is unavailable
+
+```bash
+curl "$BASE_URL/ready"
+```
+
+```json
+{
+  "ok": true,
+  "dependencies": {
+    "postgres": { "ok": true },
+    "rabbitmq": { "ok": true, "queue": "check_email" }
+  }
+}
 ```
 
 ---
@@ -386,7 +411,7 @@ All errors return JSON:
 | `400` | Bad request — missing/invalid field or wrong/missing `x-api-secret` |
 | `429` | Rate limited — try again after a short delay |
 | `500` | Internal server error |
-| `503` | Infrastructure not available (worker/RabbitMQ/Postgres not configured) |
+| `503` | Infrastructure not available (`/ready` failed or worker dependencies unavailable) |
 
 ---
 

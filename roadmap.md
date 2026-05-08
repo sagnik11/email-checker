@@ -79,6 +79,9 @@ Activate the already-accepted webhook field so downstream systems can react to t
 **Goal**  
 Separate process liveness from dependency readiness for reliable orchestration.
 
+**Status**  
+Implemented.
+
 **Implementation**
 
 - Keep `/health` as lightweight process-alive response.

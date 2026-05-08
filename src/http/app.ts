@@ -11,7 +11,7 @@ try {
 const { checkEmail } = require("../checker/checkEmail");
 const { mapRequestToCheckInput } = require("./requestMapper");
 const { badRequest, internalError } = require("./errors");
-const { publishTask, MAX_QUEUE_PRIORITY } = require("../worker/queue");
+const { publishTask, MAX_QUEUE_PRIORITY, CHECK_EMAIL_QUEUE } = require("../worker/queue");
 
 function resolvePublicDir() {
   const candidates = [
@@ -261,6 +261,36 @@ async function rpcCheckEmail(runtime, task) {
   }
 }
 
+async function checkReadiness(runtime) {
+  const dependencies = {
+    postgres: { ok: false },
+    rabbitmq: { ok: false, queue: CHECK_EMAIL_QUEUE },
+  };
+
+  try {
+    if (runtime.config.storage?.type !== "postgres" || !runtime.storage?.pool?.query) {
+      throw new Error("Postgres storage is not configured");
+    }
+    await runtime.storage.pool.query("SELECT 1");
+    dependencies.postgres.ok = true;
+  } catch (err) {
+    dependencies.postgres.error = String(err?.message || err);
+  }
+
+  try {
+    if (!runtime.rabbit?.channel) {
+      throw new Error("RabbitMQ channel is not available");
+    }
+    await runtime.rabbit.channel.checkQueue(CHECK_EMAIL_QUEUE);
+    dependencies.rabbitmq.ok = true;
+  } catch (err) {
+    dependencies.rabbitmq.error = String(err?.message || err);
+  }
+
+  const ok = dependencies.postgres.ok && dependencies.rabbitmq.ok;
+  return { ok, dependencies };
+}
+
 function createApp(runtime) {
   const app = express();
   const allowedOrigins = getAllowedOrigins(runtime.config);
@@ -285,7 +315,7 @@ function createApp(runtime) {
       ok: true,
       name: "email-validation-service",
       version: appVersion,
-      endpoints: ["/health", "/version", "/v1/check_email"],
+      endpoints: ["/health", "/ready", "/version", "/v1/check_email"],
     });
   });
 
@@ -294,6 +324,14 @@ function createApp(runtime) {
       version: appVersion,
       smtp_port: Number(process.env.EMAIL_CHECKER_SMTP_PORT || 25),
     });
+  });
+
+  app.get("/ready", async (_req, res) => {
+    const readiness = await checkReadiness(runtime);
+    if (!readiness.ok) {
+      return res.status(503).json(readiness);
+    }
+    return res.status(200).json(readiness);
   });
 
   app.post("/v1/check_email", async (req, res) => {

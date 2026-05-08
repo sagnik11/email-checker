@@ -58,6 +58,69 @@ paths:
               example:
                 ok: true
 
+  /ready:
+    get:
+      tags: [meta]
+      summary: Service readiness probe
+      description: |
+        Returns dependency readiness for Postgres and RabbitMQ. Use this for
+        container orchestrators and load balancer readiness checks.
+        Always unauthenticated.
+      security: []
+      responses:
+        "200":
+          description: All dependencies are ready
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, dependencies]
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  dependencies:
+                    type: object
+                    properties:
+                      postgres:
+                        type: object
+                        required: [ok]
+                        properties:
+                          ok: { type: boolean, const: true }
+                      rabbitmq:
+                        type: object
+                        required: [ok, queue]
+                        properties:
+                          ok: { type: boolean, const: true }
+                          queue: { type: string, example: check_email }
+        "503":
+          description: One or more dependencies are unavailable
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, dependencies]
+                properties:
+                  ok:
+                    type: boolean
+                    const: false
+                  dependencies:
+                    type: object
+                    properties:
+                      postgres:
+                        type: object
+                        required: [ok]
+                        properties:
+                          ok: { type: boolean, const: false }
+                          error: { type: string }
+                      rabbitmq:
+                        type: object
+                        required: [ok, queue]
+                        properties:
+                          ok: { type: boolean, const: false }
+                          queue: { type: string, example: check_email }
+                          error: { type: string }
+
   /version:
     get:
       tags: [meta]

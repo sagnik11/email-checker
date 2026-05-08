@@ -301,7 +301,8 @@ Full reference: [`API_DOCUMENTATION.md`](./API_DOCUMENTATION.md)
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/health` | Service health check |
+| `GET` | `/health` | Process liveness check (server is alive) |
+| `GET` | `/ready` | Dependency readiness check (Postgres + RabbitMQ) |
 | `GET` | `/version` | Package version |
 | `POST` | `/v1/check_email` | Validate a single email |
 | `POST` | `/v1/bulk` | Submit a bulk validation job |

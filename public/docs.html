@@ -716,8 +716,8 @@ curl 'http://127.0.0.1:8080/v1/bulk/42/results?format=csv' -o results.csv</code>
           <section id="api">
             <h2><span class="num">03</span>API reference</h2>
             <p>
-              Six endpoints. <code>/health</code>, <code>/version</code>, and
-              <code>/</code> are unauthenticated. All <code>/v1/*</code>
+              Seven endpoints. <code>/health</code>, <code>/ready</code>,
+              <code>/version</code>, and <code>/</code> are unauthenticated. All <code>/v1/*</code>
               endpoints require an <code>x-api-secret</code> header when
               <code>header_secret</code> is configured (see
               <a href="#auth">Authentication</a>).
@@ -728,10 +728,35 @@ curl 'http://127.0.0.1:8080/v1/bulk/42/results?format=csv' -o results.csv</code>
               <div class="endpoint-head">
                 <span class="verb get">GET</span>
                 <span class="endpoint-path">/health</span>
-                <span class="endpoint-summary">Service liveness</span>
+                <span class="endpoint-summary">Process liveness (HTTP server alive)</span>
               </div>
               <h4>Response — 200</h4>
               <pre><code>{ "ok": true }</code></pre>
+            </div>
+
+            <!-- /ready -->
+            <div class="endpoint">
+              <div class="endpoint-head">
+                <span class="verb get">GET</span>
+                <span class="endpoint-path">/ready</span>
+                <span class="endpoint-summary">Dependency readiness (Postgres + RabbitMQ)</span>
+              </div>
+              <h4>Response — 200</h4>
+              <pre><code>{
+  "ok": true,
+  "dependencies": {
+    "postgres": { "ok": true },
+    "rabbitmq": { "ok": true, "queue": "check_email" }
+  }
+}</code></pre>
+              <h4>Response — 503</h4>
+              <pre><code>{
+  "ok": false,
+  "dependencies": {
+    "postgres": { "ok": false, "error": "..." },
+    "rabbitmq": { "ok": true, "queue": "check_email" }
+  }
+}</code></pre>
             </div>
 
             <!-- /version -->
@@ -1059,8 +1084,8 @@ curl 'http://127.0.0.1:8080/v1/bulk/42/results?format=csv' -o results.csv</code>
             <p>
               When <code>header_secret</code> is unset, all routes are open.
               When it's set, missing or wrong values return <code>400</code>.
-              <code>/health</code>, <code>/version</code>, and <code>/</code>
-              are always unauthenticated.
+              <code>/health</code>, <code>/ready</code>, <code>/version</code>,
+              and <code>/</code> are always unauthenticated.
             </p>
             <div class="callout">
               <strong>Browser bypass.</strong> Set
@@ -1320,7 +1345,7 @@ email-validator worker --config ./backend_config.toml</code></pre>
             <h3>Observability</h3>
             <ul>
               <li>Logs are JSON-lines on stdout. Set <code>SMTP_DEBUG=true</code> for verbose SMTP transaction logs.</li>
-              <li>Health probe: <code>GET /health</code>.</li>
+              <li>Liveness probe: <code>GET /health</code>; readiness probe: <code>GET /ready</code>.</li>
               <li>Queue depth: monitor RabbitMQ's management UI / Prometheus exporter.</li>
               <li>Job status: query <code>v1_task_result</code> directly or poll <code>GET /v1/bulk/{id}</code>.</li>
             </ul>
