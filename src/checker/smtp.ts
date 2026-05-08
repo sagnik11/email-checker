@@ -296,6 +296,7 @@ async function checkSmtpOnce(input) {
     fromEmail,
     provider,
     chosenMethod,
+    onProgress,
   } = input;
 
   smtpLog("info", "smtp check start", {
@@ -312,6 +313,9 @@ async function checkSmtpOnce(input) {
 
   const cleanHost = String(mxHost || "").replace(/\.$/, "");
   const socket = await connectSocket(cleanHost, smtpPort, smtpTimeoutMs, proxy);
+  if (typeof onProgress === "function") {
+    try { onProgress("smtp_connect", { host: cleanHost, port: smtpPort }); } catch (_) {}
+  }
   socket.setTimeout(smtpTimeoutMs, () => {
     socket.destroy(new Error("SMTP timeout"));
   });
@@ -381,6 +385,9 @@ async function checkSmtpOnce(input) {
         smtpTimeoutMs
       );
       smtpLog("info", "RCPT TO response", { to_email: toEmail, code: rcpt.code, message: rcpt.message });
+      if (typeof onProgress === "function") {
+        try { onProgress("smtp_rcpt", { code: rcpt.code, message: rcpt.message }); } catch (_) {}
+      }
 
       if (rcpt.code === 250 || rcpt.code === 251) {
         deliverability = {

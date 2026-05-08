@@ -684,7 +684,7 @@
         <div class="console-form">
           <div class="form-head">
             <h2>Run a <i>check</i></h2>
-            <div class="endpoint">POST <b>/v1/check_email</b></div>
+            <div class="endpoint">GET <b>/v1/check_email/stream</b></div>
           </div>
           <form id="form" autocomplete="off">
             <div class="field-grid">
@@ -819,33 +819,23 @@
         "color:#3a4046;font:14px serif;font-style:italic;"
       );
 
-      // Rotating loading messages — specific to what the validator actually does
-      const LOADING_MSGS = [
-        "resolving MX records…",
-        "opening socket on port 25…",
-        "saying HELO…",
-        "MAIL FROM accepted…",
-        "RCPT TO awaiting reply…",
-        "checking against disposable list…",
-        "scoring reachability…",
-      ];
-      let msgTimer = null;
-      function startLoadingMsgs() {
-        let i = 0;
-        const tick = () => {
-          loadingMsgEl.classList.remove("show");
-          setTimeout(() => {
-            loadingMsgEl.textContent = "› " + LOADING_MSGS[i % LOADING_MSGS.length];
-            loadingMsgEl.classList.add("show");
-            i++;
-          }, 180);
-        };
-        tick();
-        msgTimer = setInterval(tick, 900);
+      // Pipeline stage labels — driven by real SSE events from the server.
+      const STAGE_LABELS = {
+        syntax: "checking syntax…",
+        mx: "resolving MX records…",
+        smtp_connect: "connecting to mail server…",
+        smtp_rcpt: "asking server about the mailbox…",
+        done: "scoring reachability…",
+      };
+      function showStageMessage(stage) {
+        const label = STAGE_LABELS[stage] || stage;
+        loadingMsgEl.classList.remove("show");
+        setTimeout(() => {
+          loadingMsgEl.textContent = "› " + label;
+          loadingMsgEl.classList.add("show");
+        }, 80);
       }
       function stopLoadingMsgs() {
-        clearInterval(msgTimer);
-        msgTimer = null;
         loadingMsgEl.classList.remove("show");
       }
 
@@ -932,89 +922,150 @@
         }
       }
 
-      form.addEventListener("submit", async (e) => {
+      function renderFinal(body, dt) {
+        output.textContent = JSON.stringify(body, null, 2);
+        const reach = body.is_reachable || "unknown";
+        const labelMap = {
+          safe: "safe.",
+          risky: "risky.",
+          invalid: "invalid.",
+          unknown: "unknown.",
+        };
+        setState(reach, labelMap[reach] || "unknown.");
+        tsEl.textContent = `${dt}ms · ${new Date().toLocaleTimeString()}`;
+        stopLoadingMsgs();
+        if (reach === "safe" && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+          celebrate();
+        }
+
+        // Syntax
+        updateCheck(0,
+          body.is_valid_syntax ? "pass" : "fail",
+          body.is_valid_syntax ? `${body.email_username || ""}@${body.email_domain || ""}` : "invalid format"
+        );
+        // MX
+        updateCheck(1,
+          body.mx_accepts_mail ? "pass" : "fail",
+          body.mx_accepts_mail ? `${(body.mx_records || []).length || "1+"} record(s)` : "no records"
+        );
+        // SMTP
+        let smtpStatus = "warn", smtpVal = "indeterminate";
+        if (body.smtp_is_deliverable) { smtpStatus = "pass"; smtpVal = "deliverable"; }
+        else if (body.smtp_is_disabled_account) { smtpStatus = "fail"; smtpVal = "mailbox disabled"; }
+        else if (body.smtp_can_connect === false) { smtpStatus = "fail"; smtpVal = "no connection"; }
+        else if (body.smtp_has_full_inbox) { smtpStatus = "warn"; smtpVal = "inbox full"; }
+        else if (body.smtp_is_catch_all) { smtpStatus = "warn"; smtpVal = "catch-all"; }
+        updateCheck(2, smtpStatus, smtpVal);
+        // misc
+        updateCheck(3,
+          body.is_disposable_email ? "fail" : "pass",
+          body.is_disposable_email ? "disposable" : "permanent"
+        );
+        updateCheck(4,
+          body.is_role_account ? "warn" : "pass",
+          body.is_role_account ? "role account" : "individual"
+        );
+        updateCheck(5,
+          body.is_b2c_provider ? "warn" : "pass",
+          body.is_b2c_provider ? "consumer provider" : "business domain"
+        );
+      }
+
+      form.addEventListener("submit", (e) => {
         e.preventDefault();
         const to_email = document.getElementById("to_email").value.trim();
         if (!to_email) return;
-
-        const payload = {
-          to_email,
-          from_email: document.getElementById("from_email").value || undefined,
-          hello_name: document.getElementById("hello_name").value || undefined,
-          smtp_port: Number(document.getElementById("smtp_port").value || 25),
-        };
 
         btn.disabled = true;
         setState("loading", "checking…");
         targetEl.textContent = to_email;
         tsEl.textContent = "in flight · " + new Date().toLocaleTimeString();
         resetChecks();
-        startLoadingMsgs();
+        showStageMessage("syntax");
 
+        const url = "/v1/check_email/stream?email=" + encodeURIComponent(to_email);
         const t0 = performance.now();
-        try {
-          const res = await fetch("/v1/check_email", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify(payload),
-          });
-          const body = await res.json();
-          const dt = Math.round(performance.now() - t0);
-          output.textContent = JSON.stringify(body, null, 2);
+        const es = new EventSource(url);
+        let finished = false;
 
-          const reach = body.is_reachable || "unknown";
-          const labelMap = {
-            safe: "safe.",
-            risky: "risky.",
-            invalid: "invalid.",
-            unknown: "unknown.",
-          };
-          setState(reach, labelMap[reach] || "unknown.");
-          tsEl.textContent = `${dt}ms · ${new Date().toLocaleTimeString()}`;
-          stopLoadingMsgs();
-          if (reach === "safe" && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-            celebrate();
+        const finish = () => {
+          finished = true;
+          es.close();
+          btn.disabled = false;
+        };
+
+        es.addEventListener("syntax", (evt) => {
+          showStageMessage("syntax");
+          try {
+            const data = JSON.parse(evt.data);
+            updateCheck(0,
+              data.is_valid_syntax ? "pass" : "fail",
+              data.is_valid_syntax ? `${data.username || ""}@${data.domain || ""}` : "invalid format"
+            );
+          } catch (_) {}
+        });
+
+        es.addEventListener("mx", (evt) => {
+          showStageMessage("mx");
+          try {
+            const data = JSON.parse(evt.data);
+            updateCheck(1,
+              data.accepts_mail ? "pass" : "fail",
+              data.accepts_mail ? `${(data.records || []).length || "1+"} record(s)` : "no records"
+            );
+          } catch (_) {}
+        });
+
+        es.addEventListener("smtp_connect", (evt) => {
+          showStageMessage("smtp_connect");
+          try {
+            const data = JSON.parse(evt.data);
+            updateCheck(2, "warn", `connected ${data.host}:${data.port}`);
+          } catch (_) {
+            updateCheck(2, "warn", "connected");
           }
+        });
 
-          // Syntax
-          updateCheck(0,
-            body.is_valid_syntax ? "pass" : "fail",
-            body.is_valid_syntax ? `${body.email_username || ""}@${body.email_domain || ""}` : "invalid format"
-          );
-          // MX
-          updateCheck(1,
-            body.mx_accepts_mail ? "pass" : "fail",
-            body.mx_accepts_mail ? `${(body.mx_records || []).length || "1+"} record(s)` : "no records"
-          );
-          // SMTP
-          let smtpStatus = "warn", smtpVal = "indeterminate";
-          if (body.smtp_is_deliverable) { smtpStatus = "pass"; smtpVal = "deliverable"; }
-          else if (body.smtp_is_disabled_account) { smtpStatus = "fail"; smtpVal = "mailbox disabled"; }
-          else if (body.smtp_can_connect === false) { smtpStatus = "fail"; smtpVal = "no connection"; }
-          else if (body.smtp_has_full_inbox) { smtpStatus = "warn"; smtpVal = "inbox full"; }
-          else if (body.smtp_is_catch_all) { smtpStatus = "warn"; smtpVal = "catch-all"; }
-          updateCheck(2, smtpStatus, smtpVal);
-          // misc
-          updateCheck(3,
-            body.is_disposable_email ? "fail" : "pass",
-            body.is_disposable_email ? "disposable" : "permanent"
-          );
-          updateCheck(4,
-            body.is_role_account ? "warn" : "pass",
-            body.is_role_account ? "role account" : "individual"
-          );
-          updateCheck(5,
-            body.is_b2c_provider ? "warn" : "pass",
-            body.is_b2c_provider ? "consumer provider" : "business domain"
-          );
-        } catch (err) {
-          output.textContent = String(err);
+        es.addEventListener("smtp_rcpt", (evt) => {
+          showStageMessage("smtp_rcpt");
+          try {
+            const data = JSON.parse(evt.data);
+            const ok = data.code === 250 || data.code === 251;
+            updateCheck(2, ok ? "pass" : "warn", `${data.code} ${data.message || ""}`.trim());
+          } catch (_) {}
+        });
+
+        es.addEventListener("done", (evt) => {
+          showStageMessage("done");
+          try {
+            const body = JSON.parse(evt.data);
+            const dt = Math.round(performance.now() - t0);
+            renderFinal(body, dt);
+          } catch (err) {
+            output.textContent = String(err);
+            setState("invalid", "error.");
+            tsEl.textContent = "parse failed";
+            stopLoadingMsgs();
+          } finally {
+            finish();
+          }
+        });
+
+        es.addEventListener("error", (evt) => {
+          if (finished) return;
+          let msg = "request failed";
+          if (evt && evt.data) {
+            try {
+              const parsed = JSON.parse(evt.data);
+              if (parsed && parsed.message) msg = parsed.message;
+            } catch (_) {}
+          }
+          output.textContent = msg;
           setState("invalid", "error.");
           tsEl.textContent = "request failed";
           stopLoadingMsgs();
-        } finally {
-          btn.disabled = false;
-        }
+          finish();
+        });
       });
     </script>
   </body>

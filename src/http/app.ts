@@ -101,7 +101,7 @@ function checkHeaderSecret(req, config) {
     return { ok: true };
   }
 
-  const actual = req.header("x-api-secret");
+  const actual = req.header("x-api-secret") || (req.query && req.query.api_secret);
   if (!actual) {
     return {
       ok: false,
@@ -312,7 +312,13 @@ function createApp(runtime) {
       ok: true,
       name: "email-validation-service",
       version: appVersion,
-      endpoints: ["/health", "/ready", "/version", "/v1/check_email"],
+      endpoints: [
+        "/health",
+        "/ready",
+        "/version",
+        "/v1/check_email",
+        "/v1/check_email/stream",
+      ],
     });
   });
 
@@ -380,6 +386,89 @@ function createApp(runtime) {
       return res.json(result);
     } catch (err) {
       return res.status(Number(err.statusCode || 500)).json({ error: err.message });
+    }
+  });
+
+  app.get("/v1/check_email/stream", async (req, res) => {
+    const auth = checkHeaderSecret(req, runtime.config);
+    if (!auth.ok) return res.status(auth.code).json(auth.body);
+
+    const email = String(req.query?.email || "").trim();
+    if (!email) {
+      return badRequest(res, "email query parameter is required.");
+    }
+
+    const throttleResult = runtime.throttle.checkThrottle();
+    if (throttleResult) {
+      return res.status(429).json({
+        error: `Rate limit ${throttleResult.limit_type} exceeded, please wait ${throttleResult.delay_ms}ms`,
+      });
+    }
+
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+    });
+    if (typeof res.flushHeaders === "function") {
+      res.flushHeaders();
+    }
+
+    const send = (event, data) => {
+      if (res.writableEnded) return;
+      res.write(`event: ${event}\n`);
+      res.write(`data: ${JSON.stringify(data)}\n\n`);
+    };
+
+    const heartbeat = setInterval(() => {
+      if (!res.writableEnded) {
+        res.write(": ping\n\n");
+      }
+    }, 15000);
+
+    let clientClosed = false;
+    req.on("close", () => {
+      clientClosed = true;
+      clearInterval(heartbeat);
+    });
+
+    try {
+      const input = mapRequestToCheckInput(
+        { to_email: email },
+        runtime.config,
+        { job_source: "v1_stream" }
+      );
+
+      const result = await checkEmail(input, { onProgress: send });
+      runtime.throttle.incrementCounters();
+
+      try {
+        await runtime.storage.store(
+          {
+            input,
+            job_id: { kind: "single_shot" },
+            webhook: null,
+          },
+          { ok: true, result },
+          runtime.storage.getExtra()
+        );
+      } catch (storeErr) {
+        // Storage failures must not block streaming the result back.
+      }
+
+      if (!clientClosed) {
+        send("done", result);
+      }
+    } catch (err) {
+      if (!clientClosed) {
+        send("error", { message: err?.message || String(err) });
+      }
+    } finally {
+      clearInterval(heartbeat);
+      if (!res.writableEnded) {
+        res.end();
+      }
     }
   });
 

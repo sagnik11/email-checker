@@ -296,27 +296,20 @@ Make bulk validation usable from the browser without external tooling.
 
 ---
 
-### 2.5 SSE for Single-Check Progress
+### 2.5 SSE for Single-Check Progress ✅ Shipped
 
 **Goal**  
 Expose pipeline stage visibility to improve user trust and UX.
 
-**Implementation**
+**Implementation (shipped)**
 
-- Add `GET /v1/check_email/stream?email=...` in `src/http/app.ts`.
-- Emit ordered stages:
-  - `syntax`
-  - `mx`
-  - `smtp_connect`
-  - `smtp_rcpt`
-  - `done`
-- UI consumes via `EventSource`.
-
-**Acceptance Criteria**
-
-- Stream events reflect real execution order.
-- Stream completes with terminal result.
-- Non-stream endpoint behavior unchanged.
+- `GET /v1/check_email/stream?email=...` in `src/http/app.ts`.
+- Emits ordered stages: `syntax` → `mx` → `smtp_connect` → `smtp_rcpt` → `done` (short-circuited stages are omitted; `done` always carries the full `CheckEmailResponse`).
+- Progress is threaded through `checkEmail()` and `checkSmtp()` via an optional `onProgress(stage, payload)` callback — no refactor of individual stage modules.
+- UI in `public/index.html` consumes the stream via `EventSource` and updates the Syntax / MX / SMTP rows live.
+- Auth: accepts either `x-api-secret` header or `api_secret` query parameter (the latter exists because browser `EventSource` cannot send custom headers).
+- Worker-mode caveat: the streaming endpoint always runs inline in the API process, even when `worker.enable = true`. The non-streaming `POST /v1/check_email` is unchanged.
+- Tests: `test/stream.test.ts` verifies stage ordering, missing-email rejection, and JSON well-formedness of every event payload.
 
 ---
 

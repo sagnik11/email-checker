@@ -85,7 +85,7 @@ Most teams reach for ZeroBounce, NeverBounce, or similar SaaS tools by default. 
 
 ## Features
 
-- **HTTP API** — single check (`POST /v1/check_email`) and async bulk processing (`POST /v1/bulk`) with case-insensitive deduplication so each unique address is checked only once per job
+- **HTTP API** — single check (`POST /v1/check_email`), live progress stream (`GET /v1/check_email/stream`), and async bulk processing (`POST /v1/bulk`)
 - **CLI** — `email-validator check someone@gmail.com` from your terminal
 - **Web UI** — browser-based quick-check page served at `/`, plus a drag-and-drop bulk page at [`/bulk.html`](./public/bulk.html) for CSV upload, live progress, and CSV download
 - **Queue worker** — RabbitMQ-backed async processing for large lists
@@ -316,6 +316,7 @@ Full reference: [`API_DOCUMENTATION.md`](./API_DOCUMENTATION.md)
 | `GET` | `/ready` | Dependency readiness check (Postgres + RabbitMQ) |
 | `GET` | `/version` | Package version |
 | `POST` | `/v1/check_email` | Validate a single email |
+| `GET` | `/v1/check_email/stream` | Validate a single email and stream pipeline stages over Server-Sent Events |
 | `POST` | `/v1/bulk` | Submit a bulk validation job |
 | `GET` | `/v1/bulk/:id` | Poll bulk job progress |
 | `GET` | `/v1/bulk/:id/results` | Fetch results (JSON or CSV) |

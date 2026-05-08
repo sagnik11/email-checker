@@ -871,6 +871,84 @@ curl 'http://127.0.0.1:8080/v1/bulk/42/results?format=csv' -o results.csv</code>
               </table>
             </div>
 
+            <!-- /v1/check_email/stream -->
+            <div class="endpoint">
+              <div class="endpoint-head">
+                <span class="verb get">GET</span>
+                <span class="endpoint-path">/v1/check_email/stream</span>
+                <span class="endpoint-summary">Validate one address with live progress (SSE)</span>
+              </div>
+
+              <p>
+                Same pipeline as <code>POST /v1/check_email</code>, but each
+                stage is streamed back as a Server-Sent Event the moment it
+                completes. Useful for UIs that want to show progress while the
+                SMTP probe runs.
+              </p>
+
+              <h4>Query parameters</h4>
+              <table>
+                <thead><tr><th>Param</th><th>Required</th><th>Description</th></tr></thead>
+                <tbody>
+                  <tr><td>email *</td><td>yes</td><td>Address to validate.</td></tr>
+                  <tr><td>api_secret</td><td>conditional</td><td>Same value as the <code>x-api-secret</code> header. Required when the server is configured with a header secret and the request is from a browser <code>EventSource</code> (which can't send custom headers).</td></tr>
+                </tbody>
+              </table>
+
+              <h4>Event sequence</h4>
+              <table>
+                <thead><tr><th>Event</th><th>When</th><th><code>data:</code> payload</th></tr></thead>
+                <tbody>
+                  <tr><td><code>syntax</code></td><td>Local syntax check</td><td><code>{ is_valid_syntax, domain, username, address }</code></td></tr>
+                  <tr><td><code>mx</code></td><td>MX lookup completes</td><td><code>{ accepts_mail, records, preferred, lookupError }</code></td></tr>
+                  <tr><td><code>smtp_connect</code></td><td>TCP/TLS to MX is open</td><td><code>{ host, port }</code></td></tr>
+                  <tr><td><code>smtp_rcpt</code></td><td>Server replied to <code>RCPT TO</code></td><td><code>{ code, message }</code></td></tr>
+                  <tr><td><code>done</code></td><td>Pipeline finished</td><td>Full <a href="#schema-checkemailresponse"><code>CheckEmailResponse</code></a></td></tr>
+                  <tr><td><code>error</code></td><td>Unexpected server error</td><td><code>{ message }</code></td></tr>
+                </tbody>
+              </table>
+
+              <p>
+                Stages that get short-circuited (invalid syntax → no
+                <code>mx</code>/<code>smtp_*</code>; MX failure → no
+                <code>smtp_*</code>) are simply omitted, then <code>done</code>
+                is sent with the final result. A <code>: ping</code> heartbeat
+                comment is emitted every 15 seconds.
+              </p>
+
+              <h4>Example — cURL</h4>
+              <pre><code>curl -N "http://127.0.0.1:8080/v1/check_email/stream?email=foo@example.com"</code></pre>
+
+              <h4>Example — Browser <code>EventSource</code></h4>
+              <pre><code>const url = new URL("/v1/check_email/stream", window.location.origin);
+url.searchParams.set("email", "foo@example.com");
+
+const es = new EventSource(url);
+es.addEventListener("syntax",       (e) =&gt; console.log("syntax",       JSON.parse(e.data)));
+es.addEventListener("mx",           (e) =&gt; console.log("mx",           JSON.parse(e.data)));
+es.addEventListener("smtp_connect", (e) =&gt; console.log("smtp_connect", JSON.parse(e.data)));
+es.addEventListener("smtp_rcpt",    (e) =&gt; console.log("smtp_rcpt",    JSON.parse(e.data)));
+es.addEventListener("done",  (e) =&gt; { console.log("result", JSON.parse(e.data)); es.close(); });
+es.addEventListener("error", (e) =&gt; { console.error(e); es.close(); });</code></pre>
+
+              <div class="callout">
+                <strong>Worker-mode note:</strong> this endpoint always runs
+                the check inline in the API process so it can emit progress
+                events directly. The non-streaming
+                <code>POST /v1/check_email</code> retains worker-mode RPC
+                behavior. Throttling and storage match the inline path.
+              </div>
+
+              <h4>Errors</h4>
+              <table>
+                <thead><tr><th>Status</th><th>Body</th><th>When</th></tr></thead>
+                <tbody>
+                  <tr><td>400</td><td><code>{ error: "email query parameter is required." }</code></td><td>Missing <code>email</code> query parameter or missing/invalid auth</td></tr>
+                  <tr><td>429</td><td><code>{ error: "Rate limit ... exceeded ..." }</code></td><td>Throttled (returned as JSON before the stream opens)</td></tr>
+                </tbody>
+              </table>
+            </div>
+
             <!-- /v1/bulk -->
             <div class="endpoint">
               <div class="endpoint-head">
