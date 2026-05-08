@@ -370,6 +370,33 @@ curl "$BASE_URL/v1/bulk/42/results?format=csv" \
   -o results.csv
 ```
 
+##### CSV columns
+
+The CSV is a flat snapshot of the most useful fields from each result. Column names match the JSON response fields described above (one row per email).
+
+| Column | Type | Source field |
+|---|---|---|
+| `input` | string | `input` |
+| `is_reachable` | string | `is_reachable` |
+| `email_address` | string | `email_address` |
+| `email_username` | string | `email_username` |
+| `email_domain` | string | `email_domain` |
+| `is_valid_syntax` | boolean | `is_valid_syntax` |
+| `is_disposable_email` | boolean | `is_disposable_email` |
+| `is_role_account` | boolean | `is_role_account` |
+| `is_b2c_provider` | boolean | `is_b2c_provider` |
+| `gravatar_url` | string \| null | `gravatar_url` |
+| `mx_accepts_mail` | boolean | `mx_accepts_mail` |
+| `mx_preferred_host` | string \| null | `mx_preferred_host` |
+| `smtp_can_connect` | boolean | `smtp_can_connect` |
+| `smtp_has_full_inbox` | boolean | `smtp_has_full_inbox` |
+| `smtp_is_catch_all` | boolean | `smtp_is_catch_all` |
+| `smtp_is_deliverable` | boolean | `smtp_is_deliverable` |
+| `smtp_is_disabled_account` | boolean | `smtp_is_disabled_account` |
+| `error` | string \| null | First non-empty of `smtp_error_message`, `mx_lookup_error_message`, top-level `error` |
+
+For the full per-row schema (DNS lookup details, SMTP error subtypes, debug/timing fields), use `format=json`.
+
 ---
 
 ## Error Responses

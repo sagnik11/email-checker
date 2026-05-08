@@ -59,7 +59,7 @@ See [`API_DOCUMENTATION.md`](./API_DOCUMENTATION.md) for the full per-field refe
 
 `POST /v1/bulk` → `GET /v1/bulk/:id` → `GET /v1/bulk/:id/results`
 
-Requires: worker mode + RabbitMQ + Postgres. Submit a list of addresses, poll for progress, retrieve paginated JSON or a full CSV export.
+Requires: worker mode + RabbitMQ + Postgres. Submit a list of addresses, poll for progress, retrieve paginated JSON or a full CSV export. CSV columns mirror the flat JSON keys (`is_reachable`, `email_address`, `is_disposable_email`, `smtp_is_deliverable`, …) — see [`API_DOCUMENTATION.md` → "CSV columns"](./API_DOCUMENTATION.md#csv-columns) for the full list.
 
 ### Queue Worker
 
