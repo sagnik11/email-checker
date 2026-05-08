@@ -67,7 +67,7 @@ Requires: worker mode + RabbitMQ + Postgres. Submit a list of addresses, poll fo
 - Single-shot checks get higher priority than bulk jobs
 - Worker applies throttling before processing each message
 - Transient SMTP failures (`unknown`) are requeued once
-- Results are persisted to Postgres and optionally sent to a webhook
+- Results are persisted to Postgres and optionally sent to a webhook (signed with HMAC-SHA256 via `X-Webhook-Signature` when a secret is configured, retried up to 3 times with 1s/5s/30s backoff on 5xx/429/network failures, and structured-logged on terminal failure)
 
 ### Postgres Persistence
 
