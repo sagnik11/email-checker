@@ -362,10 +362,24 @@ function createApp(runtime) {
     }
 
     try {
-      const jobId = await runtime.storage.createV1BulkJob(req.body.input.length);
-      for (const toEmail of req.body.input) {
+      const originalInputs = req.body.input.map((e) => String(e));
+      const uniqueCanonicals = [];
+      const seen = new Set();
+      for (const raw of originalInputs) {
+        const canonical = raw.trim().toLowerCase();
+        if (!canonical || seen.has(canonical)) continue;
+        seen.add(canonical);
+        uniqueCanonicals.push(canonical);
+      }
+
+      const jobId = await runtime.storage.createV1BulkJob(
+        uniqueCanonicals.length,
+        originalInputs
+      );
+
+      for (const canonical of uniqueCanonicals) {
         const input = mapRequestToCheckInput(
-          { to_email: toEmail },
+          { to_email: canonical },
           runtime.config,
           { job_source: "v1_bulk" }
         );
@@ -422,11 +436,32 @@ function createApp(runtime) {
 
       const { limit, offset } = parseLimitOffset(req);
       const format = String(req.query.format || "json").toLowerCase();
-      const rows = await runtime.storage.getV1Results(
-        jobId,
-        limit === null ? (format === "json" ? 50 : null) : limit,
-        offset
-      );
+
+      let rows;
+      if (Array.isArray(job.original_inputs)) {
+        const byCanonical = await runtime.storage.getV1ResultsByCanonical(jobId);
+        const effectiveLimit =
+          limit === null ? (format === "json" ? 50 : job.original_inputs.length) : limit;
+        const slice = job.original_inputs.slice(offset, offset + effectiveLimit);
+
+        rows = [];
+        for (const raw of slice) {
+          const original = String(raw);
+          const canonical = original.trim().toLowerCase();
+          if (!canonical) {
+            rows.push({ input: original, is_reachable: "invalid", error: "empty input" });
+            continue;
+          }
+          const entry = byCanonical.get(canonical);
+          rows.push(entry && entry.result ? entry.result : null);
+        }
+      } else {
+        rows = await runtime.storage.getV1Results(
+          jobId,
+          limit === null ? (format === "json" ? 50 : null) : limit,
+          offset
+        );
+      }
 
       if (format === "csv") {
         const csv = stringify(rows.map(mapResultToCsvRow), { header: true });

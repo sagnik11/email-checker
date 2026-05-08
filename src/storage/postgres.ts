@@ -34,6 +34,8 @@ CREATE TABLE IF NOT EXISTS v1_task_result (
 );
 
 CREATE INDEX IF NOT EXISTS idx_v1_task_result_job_id ON v1_task_result (job_id);
+
+ALTER TABLE v1_bulk_job ADD COLUMN IF NOT EXISTS original_inputs JSONB;
 `;
 
 class PostgresStorage {
@@ -62,10 +64,10 @@ class PostgresStorage {
     return res.rows[0].id;
   }
 
-  async createV1BulkJob(totalRecords) {
+  async createV1BulkJob(totalRecords, originalInputs = null) {
     const res = await this.pool.query(
-      `INSERT INTO v1_bulk_job (total_records) VALUES ($1) RETURNING id`,
-      [totalRecords]
+      `INSERT INTO v1_bulk_job (total_records, original_inputs) VALUES ($1, $2) RETURNING id`,
+      [totalRecords, originalInputs === null ? null : JSON.stringify(originalInputs)]
     );
     return res.rows[0].id;
   }
@@ -108,7 +110,7 @@ class PostgresStorage {
 
   async getV1BulkJob(jobId) {
     const res = await this.pool.query(
-      `SELECT id, created_at, total_records FROM v1_bulk_job WHERE id = $1 LIMIT 1`,
+      `SELECT id, created_at, total_records, original_inputs FROM v1_bulk_job WHERE id = $1 LIMIT 1`,
       [jobId]
     );
     return res.rows[0] || null;
@@ -218,6 +220,20 @@ class PostgresStorage {
     const params = limit === null ? [jobId, offset] : [jobId, limit, offset];
     const res = await this.pool.query(query, params);
     return res.rows.map((r) => r.result);
+  }
+
+  async getV1ResultsByCanonical(jobId) {
+    const res = await this.pool.query(
+      `SELECT payload->'input'->>'to_email' AS canonical, result, error
+       FROM v1_task_result WHERE job_id = $1`,
+      [jobId]
+    );
+    const map = new Map();
+    for (const row of res.rows) {
+      const key = row.canonical == null ? "" : String(row.canonical).toLowerCase();
+      map.set(key, { result: row.result, error: row.error });
+    }
+    return map;
   }
 
   async countV0Processed(jobId) {
