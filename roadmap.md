@@ -269,25 +269,19 @@ Support multiple replicas with a shared limit state while remaining infra-light.
 
 ---
 
-### 2.4 Bulk Web UI
+### 2.4 Bulk Web UI ✅ shipped
 
 **Goal**  
 Make bulk validation usable from the browser without external tooling.
 
-**Implementation**
+**Shipped**
 
-- Extend `public/index.html` with Bulk tab or add `public/bulk.html`.
-- Features:
-  - drag-and-drop CSV upload
-  - submit to `POST /v1/bulk`
-  - poll `GET /v1/bulk/:id` every 2s
-  - progress bar + verdict breakdown
-  - download CSV action
-
-**Acceptance Criteria**
-
-- User can complete a full bulk workflow from UI.
-- Progress and completion states are accurate.
+- New standalone page at `public/bulk.html`, served automatically via the existing `express.static` mount.
+- Drag-and-drop CSV upload (or click to browse), client-side quote-aware CSV parsing, header auto-detection, multi-column picker.
+- Submits to `POST /v1/bulk`, polls `GET /v1/bulk/:id` every 2s (skips ticks while the tab is hidden), shows progress bar + 4-pill verdict breakdown (safe / risky / invalid / unknown) + elapsed/ETA.
+- Download CSV via `GET /v1/bulk/:id/results?format=csv` once the job completes.
+- `?job=<id>` URL parameter so a refresh re-attaches polling instead of orphaning the job.
+- "Bulk" nav link added to `public/index.html` and `public/docs.html` for discoverability.
 
 ---
 

@@ -43,6 +43,8 @@ Sending a welcome email to a bad address wastes resources, hurts deliverability,
 Every check returns a structured JSON result and a single `is_reachable` verdict: `safe`, `risky`, `invalid`, or `unknown`.
 
 > 📖 **Docs:** browse the live documentation page at [`/docs.html`](./public/docs.html) once the server is running, or read the machine-readable OpenAPI 3.1 spec at [`/openapi.yaml`](./public/openapi.yaml).
+>
+> 📥 **Bulk UI:** validate a CSV of addresses straight from the browser at [`/bulk.html`](./public/bulk.html) — drag, drop, watch progress, download a verdict CSV.
 
 ---
 
@@ -82,7 +84,7 @@ Most teams reach for ZeroBounce, NeverBounce, or similar SaaS tools by default. 
 
 - **HTTP API** — single check (`POST /v1/check_email`) and async bulk processing (`POST /v1/bulk`)
 - **CLI** — `email-validator check someone@gmail.com` from your terminal
-- **Web UI** — browser-based quick-check page served at `/`
+- **Web UI** — browser-based quick-check page served at `/`, plus a drag-and-drop bulk page at [`/bulk.html`](./public/bulk.html) for CSV upload, live progress, and CSV download
 - **Queue worker** — RabbitMQ-backed async processing for large lists
 - **Bulk jobs** — submit thousands of addresses, poll for progress, export JSON or CSV
 - **Postgres persistence** — bulk job tracking and result retrieval

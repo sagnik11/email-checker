@@ -1,0 +1,1258 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Email Validator — Bulk verify a list</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Quattrocento:wght@400;700&family=Quattrocento+Sans:ital,wght@0,400;0,700;1,400&family=Inconsolata:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* Tokens & chrome — keep in sync with index.html / docs.html */
+      :root {
+        --paper: #f1ece1;
+        --paper-deep: #e7e0d1;
+        --ink: #0d1219;
+        --ink-soft: #2a3140;
+        --ink-mute: #5a6271;
+        --rule: #0d1219;
+        --accent: #ef9f28;
+        --accent-soft: #ef9f2818;
+        --copper: #c47830;
+        --navy: #1e2d4a;
+        --teal: #00a88a;
+        --teal-bright: #2effd1;
+        --warn: #9a6f06;
+        --safe: #00a88a;
+        --risky: #9a6f06;
+        --invalid: #b3331f;
+        --unknown: #5a5a5a;
+        --serif: "Quattrocento", "Times New Roman", serif;
+        --sans: "Quattrocento Sans", -apple-system, "Segoe UI", sans-serif;
+        --mono: "Inconsolata", ui-monospace, "SF Mono", monospace;
+      }
+
+      * { box-sizing: border-box; }
+
+      html, body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font-family: var(--sans);
+        font-size: 15px;
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      body {
+        background-image:
+          radial-gradient(1200px 600px at 110% -10%, #e7d8b8 0%, transparent 60%),
+          radial-gradient(900px 500px at -10% 110%, #d8e0d3 0%, transparent 55%);
+        min-height: 100vh;
+        position: relative;
+        overflow-x: hidden;
+      }
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.08 0 0 0 0 0.10 0 0 0 0 0.11 0 0 0 0.16 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+        opacity: 0.55;
+        mix-blend-mode: multiply;
+        pointer-events: none;
+        z-index: 0;
+      }
+
+      .shell {
+        position: relative;
+        z-index: 1;
+        max-width: 1240px;
+        margin: 0 auto;
+        padding: clamp(20px, 3vw, 36px) clamp(20px, 4vw, 56px) 80px;
+      }
+
+      /* ── Top bar ── */
+      .topbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-bottom: 22px;
+        border-bottom: 1px solid var(--rule);
+      }
+      .mark {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-family: var(--serif);
+        font-size: 22px;
+        letter-spacing: -0.01em;
+      }
+      .mark-dot {
+        width: 12px; height: 12px;
+        background: var(--accent);
+        border-radius: 50%;
+        display: inline-block;
+      }
+      .mark em { font-style: italic; color: var(--ink-soft); font-weight: 400; margin-left: 2px; }
+      .topbar nav {
+        display: flex; gap: 28px;
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+      }
+      .topbar nav a {
+        color: var(--ink-soft);
+        text-decoration: none;
+        transition: color 160ms;
+      }
+      .topbar nav a:hover { color: var(--accent); }
+      .topbar nav a.active { color: var(--accent); }
+
+      /* ── Hero ── */
+      .hero {
+        padding: clamp(36px, 6vw, 72px) 0 clamp(20px, 3vw, 32px);
+      }
+      .hero-tag {
+        font-family: var(--mono);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        color: var(--accent);
+        margin-bottom: 22px;
+        display: flex; align-items: center; gap: 10px;
+      }
+      .hero-tag::before {
+        content: "";
+        width: 28px; height: 1px;
+        background: var(--accent);
+        display: inline-block;
+      }
+      .hero h1 {
+        font-family: var(--serif);
+        font-weight: 400;
+        font-size: clamp(40px, 6vw, 80px);
+        line-height: 1;
+        letter-spacing: -0.025em;
+        margin: 0 0 20px;
+        max-width: 16ch;
+      }
+      .hero h1 i { font-style: italic; color: var(--accent); }
+      .hero-sub {
+        max-width: 56ch;
+        color: var(--ink-soft);
+        font-size: clamp(15px, 1.2vw, 17px);
+        line-height: 1.55;
+      }
+
+      /* ── Card ── */
+      .card {
+        background: var(--ink);
+        color: #ece6d6;
+        border-radius: 4px;
+        overflow: hidden;
+        margin-top: 28px;
+        padding: 38px clamp(28px, 3vw, 44px) 36px;
+        box-shadow:
+          0 1px 0 #00000020,
+          0 30px 60px -20px rgba(22, 26, 29, 0.35);
+      }
+      .card-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        margin-bottom: 28px;
+        padding-bottom: 18px;
+        border-bottom: 1px dashed #ffffff20;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+      .card-head h2 {
+        font-family: var(--serif);
+        font-weight: 400;
+        font-size: 26px;
+        margin: 0;
+        letter-spacing: -0.01em;
+      }
+      .card-head h2 i { font-style: italic; color: var(--accent); }
+      .endpoint {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: #a8a092;
+        background: #ffffff0a;
+        padding: 4px 8px;
+        border-radius: 3px;
+        border: 1px solid #ffffff14;
+      }
+      .endpoint b { color: var(--accent); font-weight: 500; }
+
+      /* ── Drop zone ── */
+      .drop {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        gap: 12px;
+        padding: 56px 24px;
+        border: 1px dashed #ffffff30;
+        border-radius: 6px;
+        background: #ffffff05;
+        cursor: pointer;
+        transition: border-color 200ms, background 200ms;
+      }
+      .drop:hover { border-color: var(--accent); background: #ef9f2810; }
+      .drop.is-drag { border-color: var(--accent); background: #ef9f2818; }
+      .drop input[type="file"] { display: none; }
+      .drop .glyph {
+        font-family: var(--serif);
+        font-style: italic;
+        font-size: 56px;
+        line-height: 1;
+        color: var(--accent);
+      }
+      .drop .primary {
+        font-family: var(--serif);
+        font-size: 22px;
+        letter-spacing: -0.01em;
+      }
+      .drop .secondary {
+        font-family: var(--mono);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.16em;
+        color: #a8a092;
+      }
+      .drop .browse {
+        font-family: var(--mono);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        color: var(--accent);
+        text-decoration: underline;
+      }
+
+      /* ── File preview ── */
+      .preview {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 18px;
+        align-items: center;
+        padding: 18px 20px;
+        background: #ffffff08;
+        border: 1px solid #ffffff14;
+        border-radius: 4px;
+        margin-top: 18px;
+      }
+      .preview .name {
+        font-family: var(--mono);
+        font-size: 13px;
+        color: #ece6d6;
+        word-break: break-all;
+      }
+      .preview .meta {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: #a8a092;
+        margin-top: 4px;
+      }
+      .preview button {
+        background: transparent;
+        border: 1px solid #ffffff28;
+        color: #c9c2b3;
+        font-family: var(--mono);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        padding: 8px 12px;
+        border-radius: 3px;
+        cursor: pointer;
+        transition: border-color 160ms, color 160ms;
+      }
+      .preview button:hover { border-color: var(--accent); color: var(--accent); }
+
+      .picker {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 14px;
+        padding: 12px 16px;
+        background: #ffffff05;
+        border: 1px solid #ffffff10;
+        border-radius: 4px;
+      }
+      .picker label {
+        font-family: var(--mono);
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        color: #a8a092;
+      }
+      .picker select {
+        flex: 1;
+        background: transparent;
+        border: 0;
+        border-bottom: 1px solid #ffffff28;
+        color: #f3ede0;
+        font-family: var(--mono);
+        font-size: 13px;
+        padding: 6px 0;
+        outline: none;
+      }
+      .picker select option { background: var(--ink); color: #f3ede0; }
+
+      .preview-emails {
+        margin-top: 14px;
+        font-family: var(--mono);
+        font-size: 12px;
+        color: #a8a092;
+      }
+      .preview-emails span { color: #ece6d6; }
+      .preview-emails span + span::before { content: " · "; color: #4a4d50; }
+
+      .warning {
+        margin-top: 14px;
+        padding: 10px 14px;
+        background: #ef9f2818;
+        border: 1px solid #ef9f2840;
+        border-radius: 3px;
+        color: #f3ede0;
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+
+      /* ── Submit / actions ── */
+      .submit {
+        margin-top: 24px;
+        width: 100%;
+        background: var(--paper);
+        color: var(--ink);
+        border: 0;
+        padding: 18px 22px;
+        font-family: var(--sans);
+        font-weight: 500;
+        font-size: 14px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1), background 200ms;
+      }
+      .submit:hover { background: #fff8e8; }
+      .submit:active { transform: translateY(1px); }
+      .submit[disabled] { opacity: 0.55; cursor: not-allowed; }
+      .submit .arrow {
+        font-family: var(--serif);
+        font-style: italic;
+        font-size: 22px;
+        text-transform: none;
+        letter-spacing: 0;
+        display: inline-block;
+        transition: transform 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
+      }
+      .submit:hover:not([disabled]) .arrow { transform: translateX(6px); }
+
+      .ghost-btn {
+        margin-top: 12px;
+        width: 100%;
+        background: transparent;
+        color: #c9c2b3;
+        border: 1px solid #ffffff20;
+        padding: 14px 22px;
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        cursor: pointer;
+        transition: border-color 160ms, color 160ms;
+      }
+      .ghost-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+      /* ── Progress ── */
+      .progress-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+      .job-id {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: #a8a092;
+        background: #ffffff08;
+        padding: 4px 10px;
+        border-radius: 3px;
+        border: 1px solid #ffffff14;
+      }
+      .job-id b { color: var(--accent); font-weight: 500; }
+
+      .progress-bar {
+        position: relative;
+        height: 10px;
+        background: #ffffff10;
+        border-radius: 999px;
+        overflow: hidden;
+        margin-top: 22px;
+      }
+      .progress-bar .fill {
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 0%;
+        background: linear-gradient(90deg, var(--accent) 0%, var(--teal-bright) 100%);
+        transition: width 400ms cubic-bezier(0.2, 0.8, 0.2, 1);
+      }
+      .progress-stats {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 10px;
+        font-family: var(--mono);
+        font-size: 11px;
+        color: #a8a092;
+      }
+      .progress-stats b { color: #ece6d6; font-weight: 500; }
+
+      .summary {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1px;
+        margin-top: 26px;
+        background: #ffffff14;
+        border-top: 1px solid #ffffff14;
+        border-bottom: 1px solid #ffffff14;
+      }
+      .summary .cell {
+        background: var(--ink);
+        padding: 18px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        align-items: flex-start;
+      }
+      .summary .cell .label {
+        font-family: var(--mono);
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.16em;
+        color: #a8a092;
+        display: flex; align-items: center; gap: 8px;
+      }
+      .summary .cell .pill {
+        width: 8px; height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+        background: #4a4d50;
+      }
+      .summary .cell[data-tone="safe"] .pill    { background: #2effd1; box-shadow: 0 0 0 4px #2effd122; }
+      .summary .cell[data-tone="risky"] .pill   { background: #ef9f28; box-shadow: 0 0 0 4px #ef9f2822; }
+      .summary .cell[data-tone="invalid"] .pill { background: #e87c7c; box-shadow: 0 0 0 4px #e87c7c22; }
+      .summary .cell[data-tone="unknown"] .pill { background: #c0bca8; box-shadow: 0 0 0 4px #c0bca822; }
+      .summary .cell .num {
+        font-family: var(--serif);
+        font-style: italic;
+        font-size: clamp(28px, 3vw, 40px);
+        line-height: 1;
+        color: #ece6d6;
+      }
+
+      .progress-meta {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 22px;
+        font-family: var(--mono);
+        font-size: 11px;
+        color: #a8a092;
+      }
+      .progress-meta a {
+        color: #a8a092;
+        text-decoration: none;
+        border-bottom: 1px dashed #ffffff28;
+        cursor: pointer;
+      }
+      .progress-meta a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+
+      /* ── Done ── */
+      .done-state {
+        font-family: var(--serif);
+        font-style: italic;
+        font-size: clamp(40px, 5vw, 64px);
+        line-height: 1;
+        color: var(--teal-bright);
+        margin-bottom: 8px;
+      }
+      .done-sub {
+        font-family: var(--mono);
+        font-size: 12px;
+        color: #a8a092;
+      }
+      .actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-top: 26px;
+      }
+      .action-link {
+        background: var(--paper);
+        color: var(--ink);
+        border: 0;
+        padding: 16px 18px;
+        font-family: var(--sans);
+        font-weight: 500;
+        font-size: 13px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        text-align: center;
+        text-decoration: none;
+        cursor: pointer;
+        transition: background 200ms, transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+        display: flex; align-items: center; justify-content: center; gap: 8px;
+      }
+      .action-link:hover { background: #fff8e8; }
+      .action-link:active { transform: translateY(1px); }
+      .action-link.secondary {
+        background: transparent;
+        color: #c9c2b3;
+        border: 1px solid #ffffff28;
+      }
+      .action-link.secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+      /* ── Error ── */
+      .error-banner {
+        padding: 18px 20px;
+        background: #b3331f18;
+        border: 1px solid #b3331f50;
+        border-radius: 4px;
+        color: #f3ede0;
+      }
+      .error-banner .label {
+        font-family: var(--mono);
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.16em;
+        color: #e87c7c;
+        margin-bottom: 6px;
+      }
+      .error-banner .msg {
+        font-family: var(--mono);
+        font-size: 13px;
+        word-break: break-word;
+      }
+
+      /* ── Below-fold pillars ── */
+      .pillars {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0;
+        margin-top: clamp(60px, 7vw, 96px);
+        padding-top: 32px;
+        border-top: 1px solid var(--rule);
+      }
+      .pillar {
+        padding: 8px 28px 0 28px;
+        border-right: 1px solid #1a1f2322;
+        transition: transform 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
+      }
+      .pillar:hover { transform: translateY(-2px); }
+      .pillar:first-child { padding-left: 0; }
+      .pillar:last-child { border-right: 0; padding-right: 0; }
+      .pillar .num {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--ink-mute);
+        letter-spacing: 0.16em;
+      }
+      .pillar h3 {
+        font-family: var(--serif);
+        font-weight: 400;
+        font-size: 24px;
+        line-height: 1.05;
+        margin: 18px 0 10px;
+        letter-spacing: -0.01em;
+      }
+      .pillar h3 i { font-style: italic; color: var(--accent); }
+      .pillar p {
+        color: var(--ink-soft);
+        margin: 0;
+        font-size: 14px;
+        line-height: 1.55;
+      }
+
+      /* ── Footer ── */
+      .foot {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        align-items: center;
+        gap: 32px;
+        margin-top: clamp(60px, 8vw, 110px);
+        padding-top: 28px;
+        border-top: 1px solid var(--rule);
+        font-size: 13px;
+        color: var(--ink-soft);
+      }
+      .foot-left { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-mute); }
+      .foot-right { display: flex; justify-content: flex-end; gap: 16px; align-items: center; }
+      .foot-right a {
+        color: var(--ink);
+        text-decoration: none;
+        font-family: var(--mono);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        border-bottom: 1px solid transparent;
+        transition: border-color 160ms;
+      }
+      .foot-right a:hover { border-bottom-color: var(--accent); }
+
+      /* ── Delight ── */
+      @keyframes pulseDot {
+        0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 #ef9f2855; }
+        50% { transform: scale(1.18); box-shadow: 0 0 0 8px #ef9f2800; }
+      }
+      .mark-dot { animation: pulseDot 2.4s ease-in-out infinite; }
+
+      @keyframes barShimmer {
+        0% { background-position: 0% 50%; }
+        100% { background-position: 200% 50%; }
+      }
+      .progress-bar .fill.is-active {
+        background: linear-gradient(90deg, var(--accent) 0%, var(--teal-bright) 50%, var(--accent) 100%);
+        background-size: 200% 100%;
+        animation: barShimmer 2.4s linear infinite;
+      }
+
+      .hidden { display: none !important; }
+
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after {
+          animation-duration: 0.01ms !important;
+          transition-duration: 0.01ms !important;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .summary { grid-template-columns: repeat(2, 1fr); }
+        .actions { grid-template-columns: 1fr; }
+        .pillars { grid-template-columns: 1fr; }
+        .pillar { border-right: 0; padding: 8px 0 16px; border-bottom: 1px solid #1a1f2322; }
+        .foot { grid-template-columns: 1fr; text-align: center; }
+        .foot-right { justify-content: center; flex-wrap: wrap; }
+      }
+      @media (max-width: 520px) {
+        .topbar nav { display: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <header class="topbar">
+        <div class="mark">
+          <span class="mark-dot"></span>
+          Email Validator <em>/ bulk</em>
+        </div>
+        <nav>
+          <a href="/">App</a>
+          <a href="/bulk.html" class="active">Bulk</a>
+          <a href="/docs.html">Docs</a>
+          <a href="/openapi.yaml">OpenAPI</a>
+          <a href="https://github.com/sagnik11/email-checker" target="_blank" rel="noopener">GitHub</a>
+        </nav>
+      </header>
+
+      <section class="hero">
+        <div class="hero-tag">Bulk verification</div>
+        <h1>Verify a <i>list.</i></h1>
+        <p class="hero-sub">
+          Drop a CSV of email addresses. We'll queue every entry, run the same
+          syntax · MX · SMTP checks, and hand you back a CSV with a verdict per row.
+        </p>
+      </section>
+
+      <!-- ───── Idle: upload ───── -->
+      <section class="card" id="card-idle">
+        <div class="card-head">
+          <h2>Upload a <i>CSV</i></h2>
+          <div class="endpoint">POST <b>/v1/bulk</b></div>
+        </div>
+
+        <label class="drop" id="drop">
+          <input type="file" id="file" accept=".csv,text/csv,text/plain" />
+          <span class="glyph">↡</span>
+          <span class="primary">Drop a CSV here</span>
+          <span class="secondary">or <span class="browse">browse</span> · max 50,000 rows</span>
+        </label>
+
+        <div class="preview hidden" id="preview">
+          <div>
+            <div class="name" id="filename">—</div>
+            <div class="meta" id="filemeta">—</div>
+            <div class="preview-emails" id="previewEmails"></div>
+          </div>
+          <button type="button" id="clearFile">Clear</button>
+        </div>
+
+        <div class="picker hidden" id="picker">
+          <label>Email column</label>
+          <select id="columnSelect"></select>
+        </div>
+
+        <div class="warning hidden" id="warning"></div>
+
+        <button class="submit" type="button" id="startBtn" disabled>
+          <span>Start verification</span>
+          <span class="arrow">→</span>
+        </button>
+      </section>
+
+      <!-- ───── Running: progress ───── -->
+      <section class="card hidden" id="card-running">
+        <div class="card-head">
+          <h2>Verifying <i>your list</i></h2>
+          <div class="job-id">JOB <b id="jobIdLabel">—</b></div>
+        </div>
+
+        <div class="progress-bar"><div class="fill is-active" id="bar"></div></div>
+        <div class="progress-stats">
+          <span><b id="processed">0</b> processed</span>
+          <span><b id="total">0</b> total</span>
+        </div>
+
+        <div class="summary">
+          <div class="cell" data-tone="safe">
+            <div class="label"><span class="pill"></span>Safe</div>
+            <div class="num" id="cnt-safe">0</div>
+          </div>
+          <div class="cell" data-tone="risky">
+            <div class="label"><span class="pill"></span>Risky</div>
+            <div class="num" id="cnt-risky">0</div>
+          </div>
+          <div class="cell" data-tone="invalid">
+            <div class="label"><span class="pill"></span>Invalid</div>
+            <div class="num" id="cnt-invalid">0</div>
+          </div>
+          <div class="cell" data-tone="unknown">
+            <div class="label"><span class="pill"></span>Unknown</div>
+            <div class="num" id="cnt-unknown">0</div>
+          </div>
+        </div>
+
+        <div class="progress-meta">
+          <span id="elapsed">elapsed 00:00</span>
+          <span id="eta">estimating…</span>
+          <a id="stopPolling">Stop polling</a>
+        </div>
+      </section>
+
+      <!-- ───── Done ───── -->
+      <section class="card hidden" id="card-done">
+        <div class="card-head">
+          <h2>Verification <i>complete</i></h2>
+          <div class="job-id">JOB <b id="jobIdLabelDone">—</b></div>
+        </div>
+
+        <div class="done-state">all done.</div>
+        <div class="done-sub" id="doneSub">—</div>
+
+        <div class="summary" style="margin-top:22px;">
+          <div class="cell" data-tone="safe">
+            <div class="label"><span class="pill"></span>Safe</div>
+            <div class="num" id="done-safe">0</div>
+          </div>
+          <div class="cell" data-tone="risky">
+            <div class="label"><span class="pill"></span>Risky</div>
+            <div class="num" id="done-risky">0</div>
+          </div>
+          <div class="cell" data-tone="invalid">
+            <div class="label"><span class="pill"></span>Invalid</div>
+            <div class="num" id="done-invalid">0</div>
+          </div>
+          <div class="cell" data-tone="unknown">
+            <div class="label"><span class="pill"></span>Unknown</div>
+            <div class="num" id="done-unknown">0</div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <a class="action-link" id="downloadBtn" href="#" download>
+            Download CSV <span style="font-family:var(--serif);font-style:italic;">↓</span>
+          </a>
+          <button class="action-link secondary" type="button" id="resetBtn">
+            Run another batch
+          </button>
+        </div>
+      </section>
+
+      <!-- ───── Error ───── -->
+      <section class="card hidden" id="card-error">
+        <div class="card-head">
+          <h2>Something <i>went wrong</i></h2>
+        </div>
+        <div class="error-banner">
+          <div class="label">Error</div>
+          <div class="msg" id="errorMsg">—</div>
+        </div>
+        <button class="ghost-btn" type="button" id="errorRetry">Try again</button>
+      </section>
+
+      <section class="pillars">
+        <div class="pillar">
+          <div class="num">01</div>
+          <h3>Same <i>checks</i></h3>
+          <p>Each row runs the full pipeline — syntax, MX, SMTP RCPT TO, disposable / role detection.</p>
+        </div>
+        <div class="pillar">
+          <div class="num">02</div>
+          <h3>Live <i>progress</i></h3>
+          <p>Watch verdicts roll in as the worker queue drains. No need to keep the tab in front.</p>
+        </div>
+        <div class="pillar">
+          <div class="num">03</div>
+          <h3>Plain <i>CSV out</i></h3>
+          <p>Download a flat CSV with the verdict per row. Drop it straight into your CRM or sheet.</p>
+        </div>
+      </section>
+
+      <footer class="foot">
+        <div class="foot-left">© Email Validator · self-hosted</div>
+        <div class="foot-right">
+          <a href="/docs.html">Docs</a>
+          <a href="/openapi.yaml">OpenAPI</a>
+          <a href="https://github.com/sagnik11/email-checker" target="_blank" rel="noopener">Source</a>
+        </div>
+      </footer>
+    </div>
+
+    <script>
+      // ── State
+      const state = {
+        emails: [],
+        rows: [],         // parsed CSV rows (array of arrays)
+        headers: null,    // null if no header detected
+        selectedCol: 0,
+        filename: "",
+        jobId: null,
+        startedAt: 0,
+        pollTimer: null,
+      };
+
+      // ── Elements
+      const $ = (id) => document.getElementById(id);
+      const cards = {
+        idle: $("card-idle"),
+        running: $("card-running"),
+        done: $("card-done"),
+        error: $("card-error"),
+      };
+      const drop = $("drop");
+      const fileInput = $("file");
+      const preview = $("preview");
+      const filenameEl = $("filename");
+      const filemetaEl = $("filemeta");
+      const previewEmails = $("previewEmails");
+      const picker = $("picker");
+      const columnSelect = $("columnSelect");
+      const warning = $("warning");
+      const startBtn = $("startBtn");
+      const clearFileBtn = $("clearFile");
+      const resetBtn = $("resetBtn");
+      const errorRetry = $("errorRetry");
+      const errorMsg = $("errorMsg");
+      const downloadBtn = $("downloadBtn");
+      const stopPollingBtn = $("stopPolling");
+
+      function showCard(name) {
+        for (const k of Object.keys(cards)) cards[k].classList.toggle("hidden", k !== name);
+      }
+
+      // ── CSV parser (quote-aware, ignores blank lines)
+      function parseCsv(text) {
+        const rows = [];
+        let row = [];
+        let cell = "";
+        let inQuotes = false;
+        for (let i = 0; i < text.length; i++) {
+          const c = text[i];
+          if (inQuotes) {
+            if (c === '"') {
+              if (text[i + 1] === '"') { cell += '"'; i++; }
+              else { inQuotes = false; }
+            } else {
+              cell += c;
+            }
+          } else {
+            if (c === '"') { inQuotes = true; }
+            else if (c === ",") { row.push(cell); cell = ""; }
+            else if (c === "\n" || c === "\r") {
+              if (c === "\r" && text[i + 1] === "\n") i++;
+              row.push(cell); cell = "";
+              if (row.some((x) => x.trim() !== "")) rows.push(row);
+              row = [];
+            } else {
+              cell += c;
+            }
+          }
+        }
+        if (cell !== "" || row.length) {
+          row.push(cell);
+          if (row.some((x) => x.trim() !== "")) rows.push(row);
+        }
+        return rows.map((r) => r.map((s) => s.trim()));
+      }
+
+      function looksLikeEmail(s) {
+        return typeof s === "string" && /\S+@\S+\.\S+/.test(s);
+      }
+
+      function detectHeader(rows) {
+        if (!rows.length) return false;
+        const first = rows[0];
+        const second = rows[1];
+        if (!first.some((c) => /[A-Za-z]/.test(c))) return false;
+        if (first.some(looksLikeEmail)) return false;
+        if (second && !second.some(looksLikeEmail)) return false;
+        return true;
+      }
+
+      function pickDefaultColumn(rows, hasHeader) {
+        const sample = rows.slice(hasHeader ? 1 : 0, hasHeader ? 6 : 5);
+        if (!sample.length) return 0;
+        const cols = sample[0].length;
+        for (let c = 0; c < cols; c++) {
+          if (sample.some((r) => looksLikeEmail(r[c]))) return c;
+        }
+        return 0;
+      }
+
+      function rebuildEmails() {
+        const dataRows = state.headers ? state.rows.slice(1) : state.rows;
+        const seen = new Set();
+        const out = [];
+        for (const r of dataRows) {
+          const cell = (r[state.selectedCol] || "").trim();
+          if (!cell) continue;
+          const key = cell.toLowerCase();
+          if (seen.has(key)) continue;
+          seen.add(key);
+          out.push(cell);
+        }
+        state.emails = out;
+        renderPreview();
+      }
+
+      function renderPreview() {
+        const total = state.emails.length;
+        const validCount = state.emails.filter(looksLikeEmail).length;
+        filemetaEl.textContent =
+          `${total.toLocaleString()} row${total === 1 ? "" : "s"} · ${validCount.toLocaleString()} look like emails`;
+
+        previewEmails.innerHTML = "";
+        for (const email of state.emails.slice(0, 3)) {
+          const el = document.createElement("span");
+          el.textContent = email;
+          previewEmails.appendChild(el);
+        }
+        if (total > 3) {
+          const el = document.createElement("span");
+          el.textContent = `+ ${(total - 3).toLocaleString()} more`;
+          el.style.color = "#6e6a5e";
+          previewEmails.appendChild(el);
+        }
+
+        warning.classList.add("hidden");
+        if (total > 50000) {
+          warning.textContent = `Capped at 50,000 — your file has ${total.toLocaleString()} rows, only the first 50,000 will be submitted.`;
+          warning.classList.remove("hidden");
+          state.emails = state.emails.slice(0, 50000);
+        } else if (total > 10000) {
+          warning.textContent = `Heads up: ${total.toLocaleString()} rows is a lot. This will take a while.`;
+          warning.classList.remove("hidden");
+        } else if (validCount === 0 && total > 0) {
+          warning.textContent = "No rows in this column look like email addresses. Try a different column.";
+          warning.classList.remove("hidden");
+        } else if (total === 0) {
+          warning.textContent = "No usable rows found in this CSV.";
+          warning.classList.remove("hidden");
+        }
+
+        startBtn.disabled = total === 0 || validCount === 0;
+      }
+
+      function loadFile(file) {
+        if (!file) return;
+        state.filename = file.name;
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const rows = parseCsv(String(reader.result || ""));
+            if (!rows.length) {
+              showError("That file looks empty.");
+              return;
+            }
+            const hasHeader = detectHeader(rows);
+            state.rows = rows;
+            state.headers = hasHeader ? rows[0] : null;
+            state.selectedCol = pickDefaultColumn(rows, hasHeader);
+
+            filenameEl.textContent = file.name;
+            preview.classList.remove("hidden");
+
+            const cols = rows[0].length;
+            if (cols > 1) {
+              picker.classList.remove("hidden");
+              columnSelect.innerHTML = "";
+              for (let c = 0; c < cols; c++) {
+                const opt = document.createElement("option");
+                opt.value = String(c);
+                opt.textContent = state.headers ? state.headers[c] || `column ${c + 1}` : `column ${c + 1}`;
+                if (c === state.selectedCol) opt.selected = true;
+                columnSelect.appendChild(opt);
+              }
+            } else {
+              picker.classList.add("hidden");
+            }
+
+            rebuildEmails();
+          } catch (err) {
+            showError("Couldn't parse that file: " + (err && err.message ? err.message : err));
+          }
+        };
+        reader.onerror = () => showError("Couldn't read that file.");
+        reader.readAsText(file);
+      }
+
+      function clearFile() {
+        state.emails = [];
+        state.rows = [];
+        state.headers = null;
+        state.selectedCol = 0;
+        state.filename = "";
+        fileInput.value = "";
+        preview.classList.add("hidden");
+        picker.classList.add("hidden");
+        warning.classList.add("hidden");
+        startBtn.disabled = true;
+      }
+
+      // ── Drop zone events
+      drop.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        drop.classList.add("is-drag");
+      });
+      drop.addEventListener("dragleave", (e) => {
+        if (e.target === drop) drop.classList.remove("is-drag");
+      });
+      drop.addEventListener("drop", (e) => {
+        e.preventDefault();
+        drop.classList.remove("is-drag");
+        const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        if (file) loadFile(file);
+      });
+      fileInput.addEventListener("change", (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (file) loadFile(file);
+      });
+      clearFileBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        clearFile();
+      });
+      columnSelect.addEventListener("change", () => {
+        state.selectedCol = Number(columnSelect.value) || 0;
+        rebuildEmails();
+      });
+
+      // ── Submit
+      startBtn.addEventListener("click", async () => {
+        if (!state.emails.length) return;
+        startBtn.disabled = true;
+        try {
+          const res = await fetch("/v1/bulk", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ input: state.emails }),
+          });
+          const body = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            const msg = body && (body.error || body.message) ? (body.error || body.message) : `HTTP ${res.status}`;
+            showError(msg);
+            return;
+          }
+          if (!body.job_id && body.job_id !== 0) {
+            showError("Unexpected response from /v1/bulk — no job_id returned.");
+            return;
+          }
+          startJob(body.job_id);
+        } catch (err) {
+          showError("Network error: " + (err && err.message ? err.message : err));
+        } finally {
+          startBtn.disabled = false;
+        }
+      });
+
+      // ── Job lifecycle
+      function startJob(jobId) {
+        state.jobId = jobId;
+        state.startedAt = Date.now();
+        $("jobIdLabel").textContent = String(jobId);
+        $("jobIdLabelDone").textContent = String(jobId);
+        // Reset counters
+        $("processed").textContent = "0";
+        $("total").textContent = "0";
+        $("bar").style.width = "0%";
+        $("bar").classList.add("is-active");
+        ["safe","risky","invalid","unknown"].forEach((k) => { $("cnt-" + k).textContent = "0"; });
+        $("elapsed").textContent = "elapsed 00:00";
+        $("eta").textContent = "estimating…";
+
+        // URL resume
+        try {
+          history.replaceState(null, "", "?job=" + encodeURIComponent(jobId));
+        } catch (_) {}
+
+        showCard("running");
+        scheduleNextPoll(0);
+      }
+
+      function scheduleNextPoll(delay) {
+        clearTimeout(state.pollTimer);
+        state.pollTimer = setTimeout(pollOnce, delay);
+      }
+
+      function stopPolling() {
+        clearTimeout(state.pollTimer);
+        state.pollTimer = null;
+        $("bar").classList.remove("is-active");
+      }
+
+      async function pollOnce() {
+        if (state.jobId == null) return;
+        if (document.visibilityState === "hidden") {
+          scheduleNextPoll(2000);
+          return;
+        }
+        try {
+          const res = await fetch("/v1/bulk/" + encodeURIComponent(state.jobId));
+          const body = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            showError((body && body.error) || `HTTP ${res.status}`);
+            return;
+          }
+          applyProgress(body);
+          if (body.job_status === "completed" || (body.total_records && body.total_processed >= body.total_records)) {
+            transitionToDone(body);
+            return;
+          }
+          scheduleNextPoll(2000);
+        } catch (err) {
+          // Transient: keep trying for a couple cycles before bailing.
+          scheduleNextPoll(2000);
+        }
+      }
+
+      function applyProgress(body) {
+        const total = Number(body.total_records || 0);
+        const processed = Number(body.total_processed || 0);
+        const pct = total > 0 ? Math.min(100, (processed / total) * 100) : 0;
+        $("bar").style.width = pct.toFixed(1) + "%";
+        $("processed").textContent = processed.toLocaleString();
+        $("total").textContent = total.toLocaleString();
+
+        const s = body.summary || {};
+        $("cnt-safe").textContent = (s.total_safe || 0).toLocaleString();
+        $("cnt-risky").textContent = (s.total_risky || 0).toLocaleString();
+        $("cnt-invalid").textContent = (s.total_invalid || 0).toLocaleString();
+        $("cnt-unknown").textContent = (s.total_unknown || 0).toLocaleString();
+
+        const elapsedMs = Date.now() - state.startedAt;
+        $("elapsed").textContent = "elapsed " + formatDuration(elapsedMs);
+        if (processed > 0 && processed < total) {
+          const remaining = (elapsedMs / processed) * (total - processed);
+          $("eta").textContent = "≈ " + formatDuration(remaining) + " remaining";
+        } else if (processed === 0) {
+          $("eta").textContent = "queued — awaiting first result";
+        } else {
+          $("eta").textContent = "wrapping up…";
+        }
+      }
+
+      function transitionToDone(body) {
+        stopPolling();
+        const s = body.summary || {};
+        $("done-safe").textContent = (s.total_safe || 0).toLocaleString();
+        $("done-risky").textContent = (s.total_risky || 0).toLocaleString();
+        $("done-invalid").textContent = (s.total_invalid || 0).toLocaleString();
+        $("done-unknown").textContent = (s.total_unknown || 0).toLocaleString();
+        const total = Number(body.total_records || 0);
+        const elapsedMs = body.created_at && body.finished_at
+          ? new Date(body.finished_at).getTime() - new Date(body.created_at).getTime()
+          : Date.now() - state.startedAt;
+        $("doneSub").textContent =
+          `${total.toLocaleString()} row${total === 1 ? "" : "s"} processed in ${formatDuration(elapsedMs)} · job ${state.jobId}`;
+        downloadBtn.href = "/v1/bulk/" + encodeURIComponent(state.jobId) + "/results?format=csv";
+        downloadBtn.setAttribute("download", `bulk-${state.jobId}.csv`);
+        showCard("done");
+      }
+
+      function formatDuration(ms) {
+        const total = Math.max(0, Math.round(ms / 1000));
+        const h = Math.floor(total / 3600);
+        const m = Math.floor((total % 3600) / 60);
+        const s = total % 60;
+        const pad = (n) => String(n).padStart(2, "0");
+        return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+      }
+
+      function showError(msg) {
+        stopPolling();
+        errorMsg.textContent = msg || "Unknown error.";
+        showCard("error");
+      }
+
+      function reset() {
+        stopPolling();
+        state.jobId = null;
+        clearFile();
+        try { history.replaceState(null, "", location.pathname); } catch (_) {}
+        showCard("idle");
+      }
+
+      resetBtn.addEventListener("click", reset);
+      errorRetry.addEventListener("click", reset);
+      stopPollingBtn.addEventListener("click", () => {
+        stopPolling();
+        $("eta").textContent = "polling stopped — refresh to resume";
+      });
+
+      window.addEventListener("beforeunload", stopPolling);
+
+      // ── Resume from ?job= on page load
+      (function resumeFromUrl() {
+        const params = new URLSearchParams(location.search);
+        const jobParam = params.get("job");
+        if (!jobParam) return;
+        const jobId = Number(jobParam);
+        if (!Number.isFinite(jobId)) return;
+        state.jobId = jobId;
+        state.startedAt = Date.now();
+        $("jobIdLabel").textContent = String(jobId);
+        $("jobIdLabelDone").textContent = String(jobId);
+        $("bar").classList.add("is-active");
+        showCard("running");
+        scheduleNextPoll(0);
+      })();
+
+      // Console signature
+      console.log(
+        "%c email validator %c bulk ",
+        "background:#161a1d;color:#f1ece1;padding:4px 8px;font:600 12px sans-serif;border-radius:3px 0 0 3px;",
+        "background:#ef9f28;color:#0d1219;padding:4px 8px;font:600 12px sans-serif;border-radius:0 3px 3px 0;"
+      );
+    </script>
+  </body>
+</html>

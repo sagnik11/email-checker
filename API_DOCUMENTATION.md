@@ -289,6 +289,8 @@ Bulk endpoints require:
 - Postgres storage configured (`storage.postgres.db_url`)
 - RabbitMQ running and reachable
 
+> 📥 **Browser UI:** the same three endpoints below back the drag-and-drop bulk page at [`/bulk.html`](./public/bulk.html) — paste in a CSV, watch verdicts tick up, download a result CSV when the job finishes. Useful for one-off list cleanups without writing a script.
+
 #### Create a bulk job
 
 **`POST /v1/bulk`**
