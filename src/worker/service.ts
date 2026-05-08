@@ -6,6 +6,35 @@ const WEBHOOK_BACKOFF_MS = [1000, 5000, 30000];
 const WEBHOOK_MAX_ATTEMPTS = 3;
 const WEBHOOK_SIGNATURE_HEADER = "x-webhook-signature";
 
+function canonicalizeEmail(value) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function dedupeEmails(inputs) {
+  const originalInputs = [];
+  const uniqueEmails = [];
+  const seen = new Set();
+
+  if (!Array.isArray(inputs)) {
+    return { uniqueEmails, originalInputs };
+  }
+
+  for (const raw of inputs) {
+    if (raw === undefined || raw === null) continue;
+    const original = String(raw);
+    const canonical = canonicalizeEmail(original);
+    if (!canonical) continue;
+
+    originalInputs.push(original);
+    if (!seen.has(canonical)) {
+      seen.add(canonical);
+      uniqueEmails.push(canonical);
+    }
+  }
+
+  return { uniqueEmails, originalInputs };
+}
+
 function taskError(message, statusCode = 500) {
   return {
     message: String(message),
@@ -158,6 +187,8 @@ async function processCheckEmailTask(task, config) {
 }
 
 module.exports = {
+  canonicalizeEmail,
+  dedupeEmails,
   processCheckEmailTask,
   taskError,
   deliverWebhook,
