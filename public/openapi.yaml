@@ -362,8 +362,19 @@ components:
       type: object
       description: |
         Webhook delivered once per processed bulk address. Workers POST a JSON
-        body of `{ "result": <CheckEmailResponse>, "extra": <any|null> }` to
-        `on_each_email.url` with the merged headers.
+        body of `{ "result": <CheckEmailResponse>, "extra": <any|null>, "taskId": <string>,
+        "email": <string>, "jobId": <object> }` to `on_each_email.url` with the merged headers.
+
+        When the server has a webhook secret configured (`worker.webhook.secret`
+        in TOML or `EMAIL_CHECKER__WORKER__WEBHOOK__SECRET`), each request also
+        carries an `X-Webhook-Signature` header containing the hex-encoded
+        HMAC-SHA256 of the raw body. When no secret is configured, the header
+        is omitted and the request is byte-identical to the pre-signing format
+        (apart from the additive body keys).
+
+        Delivery is retried up to 3 times with 1s/5s/30s backoff on network
+        errors, HTTP 5xx, and HTTP 429. On terminal failure the worker emits a
+        single structured JSON log line with `event: "webhook_delivery_failed"`.
       required: [on_each_email]
       properties:
         on_each_email:
@@ -376,7 +387,7 @@ components:
             headers:
               type: object
               additionalProperties: { type: string }
-              description: Extra HTTP headers merged on top of `content-type: application/json`.
+              description: Extra HTTP headers merged on top of `content-type: application/json`. The `x-webhook-signature` header cannot be overridden.
             extra:
               description: Opaque value forwarded back to your webhook in the body.
 

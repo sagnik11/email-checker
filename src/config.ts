@@ -26,7 +26,9 @@ function defaultConfig() {
         url: "amqp://guest:guest@localhost:5672",
         concurrency: 5,
       },
-      webhook: null,
+      webhook: {
+        secret: null,
+      },
     },
     storage: {
       type: "noop",
@@ -150,6 +152,12 @@ function normalizeConfig(config) {
   }
   if (typeof config.worker.rabbitmq.concurrency !== "number") {
     config.worker.rabbitmq.concurrency = Number(config.worker.rabbitmq.concurrency || 5);
+  }
+  if (!config.worker.webhook || typeof config.worker.webhook !== "object") {
+    config.worker.webhook = { secret: null };
+  }
+  if (!("secret" in config.worker.webhook)) {
+    config.worker.webhook.secret = null;
   }
 
   if (!config.throttle) {

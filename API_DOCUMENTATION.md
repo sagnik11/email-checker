@@ -302,13 +302,62 @@ Submit a list of emails for async processing.
 
 #### Webhook object
 
-The worker POSTs `{ "result": <CheckEmailResponse>, "extra": <any | null> }` to `webhook.on_each_email.url` for **every** processed address (not once at the end of the job). Headers from `webhook.on_each_email.headers` are merged on top of `content-type: application/json`.
+The worker POSTs to `webhook.on_each_email.url` for **every** processed address (not once at the end of the job). Headers from `webhook.on_each_email.headers` are merged on top of `content-type: application/json`.
+
+The body is JSON with these keys:
+
+| Key | Type | Description |
+|---|---|---|
+| `result` | object | The full `CheckEmailResponse` for the address |
+| `extra` | any \| null | Opaque value passed through from `on_each_email.extra` |
+| `taskId` | string | Stable identifier for this delivery (UUID, reused across retries) |
+| `email` | string | The email address that was checked |
+| `jobId` | object | The originating job, e.g. `{ "kind": "bulk_v1", "id": 123 }` |
+
+Existing receivers built before this change continue to work — `result` and `extra` retain their original shape. The other keys are additive.
 
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `on_each_email.url` | string | ✅ | Endpoint that receives the POST |
 | `on_each_email.headers` | object | | Extra HTTP headers (e.g. `{ "authorization": "Bearer ..." }`) |
 | `on_each_email.extra` | any | | Opaque value forwarded back to the webhook in the body's `extra` field |
+
+#### Delivery guarantees
+
+- **Retries**: 3 attempts total. Backoff between attempts is `1s`, `5s`, `30s`. Network errors, HTTP 5xx, and HTTP 429 are retried. HTTP 2xx ends the loop with success. Other 4xx responses are treated as terminal failures.
+- **At-least-once**: if the worker process is killed after delivering the webhook but before acking the queue message, RabbitMQ may redeliver and the webhook may fire again. The `taskId` field can be used to dedupe on the receiver side.
+- **Terminal failure**: when all 3 attempts fail (or a non-retriable status is returned), a single structured JSON line is emitted to the worker's stdout with `event: "webhook_delivery_failed"`, `endpoint`, `taskId`, `jobId`, `email`, `attempts`, `status`, and `error`.
+
+#### Signature verification
+
+When a webhook secret is configured on the server, every request includes an `X-Webhook-Signature` header containing the HMAC-SHA256 of the raw request body, hex-encoded. Receivers should compute the same digest and compare in constant time:
+
+```js
+const crypto = require("node:crypto");
+
+function verify(rawBody, headerValue, secret) {
+  const expected = crypto
+    .createHmac("sha256", secret)
+    .update(rawBody)
+    .digest("hex");
+  const a = Buffer.from(expected, "hex");
+  const b = Buffer.from(headerValue || "", "hex");
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+```
+
+If no secret is configured, the header is **not** sent — preserving the pre-change request shape for receivers that don't need verification.
+
+Configure the secret via env or TOML:
+
+```bash
+EMAIL_CHECKER__WORKER__WEBHOOK__SECRET=your-shared-secret
+```
+
+```toml
+[worker.webhook]
+secret = "your-shared-secret"
+```
 
 ```json
 {
