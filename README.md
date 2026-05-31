@@ -21,7 +21,7 @@
 
 > ### 💡 If this is the kind of problem that gets you excited, you'd love what we're building at **[Autter](https://autter.dev)**
 >
-> This project was born out of real infrastructure problems we hit while building Autter — deep protocol-level work, reliable tooling, and systems that developers can actually trust. If that sounds like your thing, come take a look: **[autter.dev](https://autter.dev)**
+> This project was born out of real infrastructure problems we hit while building Autter — deep protocol-level work, reliable tooling, and systems that developers can actually trust. If that sounds like your thing, come take a look: **[autter.dev](https://autter.dev)** You can get in toouch with us at hi@autter.dev
 
 ---
 
