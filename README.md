@@ -405,7 +405,7 @@ If working on problems like this — deep protocol-level validation, reliable in
 This project is dual-licensed:
 
 - **Open source** — [AGPL-3.0](./LICENSE) for open source projects
-- **Commercial** — contact us for a commercial license if you want to use this in proprietary software
+- **Commercial** — contact us for a commercial license if you want to use this in proprietary software or for commercial use-cases
 
 See [`LICENSE.md`](./LICENSE.md) for full details.
 
