@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/sagnik11/email-checker/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License: AGPL-3.0"></a>
+  <a href="https://github.com/sagnik11/email-checker/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License: Apache-2.0"></a>
   <a href="https://nodejs.org/"><img src="https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg" alt="Node.js ≥18"></a>
   <img src="https://img.shields.io/badge/built%20with-TypeScript-3178c6.svg" alt="TypeScript">
   <a href="https://github.com/sagnik11/email-checker/issues"><img src="https://img.shields.io/github/issues/sagnik11/email-checker.svg" alt="Open issues"></a>
@@ -67,7 +67,7 @@ Most teams reach for ZeroBounce, NeverBounce, or similar SaaS tools by default. 
 | **Bulk async processing** | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **Self-hostable** | ✅ | ❌ | ❌ | ❌ | ❌ |
 | **HaveIBeenPwned check** | ✅ optional | ❌ | ❌ | ❌ | ❌ |
-| **Open source** | ✅ AGPL-3.0 | ❌ | ❌ | ❌ | ❌ |
+| **Open source** | ✅ Apache-2.0 | ❌ | ❌ | ❌ | ❌ |
 
 ### Why this matters
 
@@ -402,12 +402,7 @@ If working on problems like this — deep protocol-level validation, reliable in
 
 ## License
 
-This project is dual-licensed:
-
-- **Open source** — [AGPL-3.0](./LICENSE) for open source projects
-- **Commercial** — contact us for a commercial license if you want to use this in proprietary software
-
-See [`LICENSE.md`](./LICENSE.md) for full details.
+Released under the [Apache-2.0](./LICENSE) license. You are free to use, modify, and distribute this software, including in proprietary and commercial products, subject to the terms of the license.
 
 ---
 
