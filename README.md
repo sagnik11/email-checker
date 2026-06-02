@@ -1,5 +1,7 @@
 # Email Validator
 
+<img width="1067" height="942" alt="image" src="https://github.com/user-attachments/assets/8763204c-650e-4dd1-b0b1-f4a56c529d14" />
+
 <p align="center">
   <strong>Verify email addresses without sending a single email.</strong><br/>
   Deep validation via syntax checks, MX DNS lookups, and live SMTP handshakes — with disposable/role/B2C detection built in.
