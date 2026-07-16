@@ -1,0 +1,15 @@
+backend_config.toml
+  h_54a1cfa3e06bfb 16,22-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "autter_version": "development:1.6.7",
+  "base_commit_sha": "d50ec155950c712d9b4a86221f9573c1d3120ad6",
+  "branch": "master",
+  "prompts": {},
+  "humans": {
+    "h_54a1cfa3e06bfb": {
+      "author": "Sagnik Ghosh <sagnik@worqhat.com>"
+    }
+  }
+}
