@@ -13,13 +13,12 @@ from_email = "noreply@example.com"
 # max_requests_per_day = 10000
 
 [worker]
-enable = false
+enable = true
 
 [worker.rabbitmq]
 url = "amqp://guest:guest@localhost:5672"
 concurrency = 5
 
-# Enable Postgres storage for bulk endpoints and persisted results.
-# [storage.postgres]
-# db_url = "postgresql://localhost/email_checker_db"
+[storage.postgres]
+db_url = "postgresql://postgres:postgres@localhost:5432/email_checker_db"
 # extra = { tenant = "acme" }
